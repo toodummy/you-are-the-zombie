@@ -114,6 +114,17 @@ p{margin:0}
   .title-panel .col{flex:1 1 0;gap:8px}
   .missions li{padding:4px 8px}
 }
+/* Phones on their side / fullscreen: use every pixel, keep clear of the notch */
+@media (max-height:500px) and (orientation:landscape){
+  body{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+  .stage{box-shadow:none}
+}
+html:fullscreen body{padding:0}
+html:fullscreen .stage{box-shadow:none}
+.rotate-hint{display:none;margin:0;font-weight:700;color:var(--gold)}
+@media (orientation:portrait) and (max-width:900px) and (pointer:coarse){
+  .rotate-hint{display:block}
+}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
@@ -134,6 +145,7 @@ p{margin:0}
             <button type="button" class="btn big" id="btnPlay">Play</button>
             <button type="button" class="btn" id="btnShopT">Upgrades</button>
           </div>
+          <p class="rotate-hint">↻ Turn your phone sideways for full screen</p>
           <p class="stats">Best <b id="tBest">0</b> &nbsp;·&nbsp; Brains <b class="br" id="tBrains">0</b></p>
         </div>
         <div class="col">

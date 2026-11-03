@@ -314,13 +314,33 @@
   padJump.addEventListener('contextmenu', e => e.preventDefault());
 
   $('pauseBtn').addEventListener('click', () => pause());
-  $('btnPlay').addEventListener('click', () => { audio.unlock(); startRun(); });
+  /* ---------- phones: fullscreen + landscape when a run starts ---------- */
+  const coarseMQ = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+  function lockLandscape() {
+    try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* optional */ }
+  }
+  function goFullscreen() {
+    if (!coarseMQ || !coarseMQ.matches) return;
+    const de = document.documentElement;
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) { lockLandscape(); return; }
+      const req = de.requestFullscreen || de.webkitRequestFullscreen;
+      if (!req) return;
+      const p = req.call(de, { navigationUI: 'hide' });
+      if (p && p.then) p.then(() => { lockLandscape(); fitStage(); }, () => {});
+      else lockLandscape();
+    } catch (e) { /* not allowed here (e.g. iPhone Safari): play in the page */ }
+  }
+  document.addEventListener('fullscreenchange', fitStage);
+  document.addEventListener('webkitfullscreenchange', fitStage);
+
+  $('btnPlay').addEventListener('click', () => { audio.unlock(); goFullscreen(); startRun(); });
   $('btnShopT').addEventListener('click', () => { audio.unlock(); openShop('title'); });
   $('btnShopBack').addEventListener('click', closeShop);
   $('btnResume').addEventListener('click', resume);
   $('btnMute').addEventListener('click', toggleMute);
   $('btnQuit').addEventListener('click', () => { game = null; showTitle(); });
-  $('btnAgain').addEventListener('click', () => { audio.unlock(); startRun(); });
+  $('btnAgain').addEventListener('click', () => { audio.unlock(); goFullscreen(); startRun(); });
   $('btnShopO').addEventListener('click', () => openShop('over'));
   $('btnMenu').addEventListener('click', showTitle);
 
