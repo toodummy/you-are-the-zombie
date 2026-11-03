@@ -1,0 +1,3307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>You Are the Zombie</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* One dark look from the concept art. A 16:9 stage, sized by main.js to fit the viewport; DOM screens overlay it. */
+:root{
+  color-scheme:dark;
+  --ink:#17121F; --night:#1B1230; --bg:#0E0A16; --bone:#F4EFD8; --acid:#C6F135; --coral:#FF5A3C; --teal:#5CC8C2; --lilac:#B9A3F0; --gold:#FFC15C; --pink:#FF8FB8; --muted:#CFC6E2;
+  --display:'Bowlby One',Impact,'Arial Black',sans-serif;
+  --body:'Space Grotesk','Trebuchet MS',Arial,sans-serif;
+  --pad:0px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--bone);font-family:var(--body);
+  overflow:hidden;display:flex;flex-direction:column;
+  padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+}
+.fit{flex:1 1 auto;min-height:0;min-width:0;width:100%;display:flex;align-items:center;justify-content:center}
+.stage{position:relative;width:min(100%, calc((100vh - 16px - var(--pad))*16/9));aspect-ratio:16/9;max-height:100%;background:var(--night);overflow:hidden;box-shadow:0 0 0 3px var(--ink),0 18px 60px rgba(0,0,0,.5)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--coral);outline-offset:3px}
+
+/* in-play buttons */
+.icon-btn{position:absolute;top:1.6%;right:1.2%;width:clamp(34px,4.4%,56px);aspect-ratio:1;border:3px solid var(--ink);background:var(--bone);color:var(--ink);font:400 clamp(12px,1.4vw,18px)/1 var(--display);cursor:pointer;padding:0;touch-action:manipulation}
+.scream-btn{position:absolute;right:2%;bottom:4%;width:clamp(78px,14%,170px);aspect-ratio:1;border-radius:50%;border:4px solid var(--ink);background:#6E5FA0;color:var(--bone);font:400 clamp(11px,1.5vw,20px)/1 var(--display);cursor:pointer;touch-action:none;opacity:.86;padding:0}
+.scream-btn.ready{background:var(--lilac);color:var(--ink);opacity:1;box-shadow:0 0 0 4px var(--lilac),0 0 28px 8px rgba(185,163,240,.7);animation:throb .7s ease-in-out infinite alternate}
+.scream-btn small{display:block;font:700 clamp(9px,.9vw,13px)/1.2 var(--body);margin-top:4px}
+.stage:not([data-mode="play"]) .icon-btn,.stage:not([data-mode="play"]) .scream-btn{display:none}
+@keyframes throb{to{transform:scale(1.07)}}
+
+/* touch pad, portrait phones only */
+.pad{display:none;flex:0 0 auto;width:100%;gap:12px;margin-top:10px;height:120px}
+.pad button{flex:1 1 0;min-width:0;border:4px solid var(--ink);font:400 clamp(15px,5vw,22px)/1 var(--display);touch-action:none;cursor:pointer}
+.pad .pj{background:var(--acid);color:var(--ink);flex-grow:2}
+.pad .ps{background:#6E5FA0;color:var(--bone)}
+.pad .ps.ready{background:var(--lilac);color:var(--ink);box-shadow:0 0 22px 6px rgba(185,163,240,.6)}
+body:not(.playing) .pad{visibility:hidden}
+@media (orientation:portrait) and (max-width:900px){
+  :root{--pad:130px}
+  .pad{display:flex}
+  .scream-btn{display:none!important}
+  .icon-btn{top:auto;bottom:3%;width:30px}
+}
+
+/* screens */
+.screen{position:absolute;inset:0;overflow:auto;display:flex;align-items:center;justify-content:flex-start;padding:3% 5%;background:linear-gradient(90deg,rgba(14,10,22,.92) 0%,rgba(14,10,22,.78) 55%,rgba(14,10,22,.25) 100%);z-index:5}
+.screen.center{justify-content:center;background:rgba(14,10,22,.82)}
+.screen[hidden]{display:none}
+.panel{display:flex;flex-direction:column;align-items:flex-start;gap:clamp(6px,1.2vh,14px);max-width:min(640px,100%);margin:auto 0}
+.center .panel{align-items:center;text-align:center;margin:auto}
+.col{display:flex;flex-direction:column;align-items:flex-start;gap:inherit;width:100%}
+.logo{margin:0;font:400 clamp(34px,min(8.6vw,13vh),110px)/.92 var(--display);letter-spacing:.01em;text-wrap:balance;text-shadow:0 5px 0 var(--ink)}
+.logo span{display:block;color:var(--acid)}
+h2{margin:0;font:400 clamp(26px,min(5vw,9vh),64px)/1 var(--display);text-shadow:0 4px 0 var(--ink)}
+h3{margin:0;font:700 clamp(12px,1.3vw,16px)/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+p{margin:0}
+.tag{font-weight:700;font-size:clamp(14px,1.7vw,22px);max-width:40ch}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{font:400 clamp(16px,2vw,26px)/1 var(--display);padding:.6em 1.1em;background:var(--bone);color:var(--ink);border:4px solid var(--ink);box-shadow:0 0 0 2px var(--bone),0 6px 0 2px var(--ink);cursor:pointer;touch-action:manipulation;min-height:44px}
+.btn.big{background:var(--acid);box-shadow:0 0 0 2px var(--acid),0 6px 0 2px var(--ink);font-size:clamp(20px,2.8vw,36px)}
+.btn.ghost{background:transparent;color:var(--bone);box-shadow:none;border-color:var(--muted)}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:active:not(:disabled){transform:translateY(3px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.stats{font-size:clamp(13px,1.5vw,19px);color:var(--muted)}
+.stats b{color:var(--bone);font-family:var(--display);font-weight:400}
+.stats .br{color:var(--pink)}
+.missions{list-style:none;margin:0;padding:0;display:grid;gap:6px;width:min(460px,100%)}
+.missions li{background:rgba(23,18,31,.85);border-left:6px solid var(--acid);padding:6px 10px;font-weight:700;font-size:clamp(12px,1.3vw,16px)}
+.missions .bar{display:block;height:5px;background:#3A3050;margin-top:5px}
+.missions .bar i{display:block;height:100%;background:var(--acid)}
+.keys{font-size:clamp(11px,1.15vw,14px);color:var(--muted);max-width:52ch}
+.keys b{color:var(--acid)}
+@media (pointer:coarse){.keys{display:none}}
+
+.shop{list-style:none;margin:0;padding:0;display:grid;gap:8px;width:min(720px,100%)}
+.shop li{text-align:left;display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;align-items:center;background:rgba(23,18,31,.9);padding:8px 12px;border-left:6px solid var(--lilac)}
+.shop strong{display:block;font:400 clamp(14px,1.6vw,20px)/1.1 var(--display)}
+.shop .desc{font-size:clamp(11px,1.15vw,14px);color:var(--muted)}
+.pips{display:flex;gap:4px}
+.pips i{width:14px;height:14px;border:2px solid var(--bone);display:block}
+.pips i.on{background:var(--acid);border-color:var(--acid)}
+.buy{font:400 clamp(12px,1.3vw,16px)/1 var(--display);padding:.6em .8em;min-width:7.5em;min-height:40px;background:var(--pink);color:var(--ink);border:3px solid var(--ink);cursor:pointer}
+.buy:disabled{background:#4A4060;color:#A99FBF;cursor:not-allowed}
+.brainline{font:400 clamp(16px,2vw,24px)/1 var(--display);color:var(--pink)}
+@media (max-width:560px){.shop li{grid-template-columns:1fr auto}.shop .pips{grid-column:1}}
+
+.scores{display:flex;flex-wrap:wrap;gap:12px 26px;justify-content:center}
+.scores div{display:flex;flex-direction:column;align-items:center;min-width:5em}
+.scores span{font-size:clamp(11px,1.2vw,15px);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.scores b{font:400 clamp(26px,4vw,54px)/1.05 var(--display)}
+.scores .brains b{color:var(--pink)}
+.newbest{font:400 clamp(14px,1.6vw,20px)/1 var(--display);color:var(--ink);background:var(--acid);padding:4px 8px;animation:blink .5s steps(2) infinite}
+.newbest[hidden]{display:none}
+@keyframes blink{50%{opacity:.25}}
+.done{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.done li{font-weight:700;color:var(--acid);font-size:clamp(12px,1.3vw,16px)}
+.hint{font-size:clamp(11px,1.2vw,14px);color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Small viewports: screens cover the whole viewport instead of the tiny stage */
+@media (max-width:600px),(max-height:440px){
+  .screen{position:fixed;inset:0;padding:max(12px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:rgba(14,10,22,.9)}
+  .panel{gap:8px}
+  .logo{font-size:clamp(30px,min(10vw,14vh),64px)}
+}
+@media (max-height:440px) and (orientation:landscape){
+  .title-panel{flex-direction:row;align-items:center;gap:28px;max-width:none;width:100%}
+  .title-panel .col{flex:1 1 0;gap:8px}
+  .missions li{padding:4px 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<div class="fit" id="fit">
+  <div class="stage" id="stage" data-mode="title">
+    <canvas id="game" width="1280" height="720" role="img" aria-label="You Are the Zombie: the horde runs right. Jump over hazards and bite people to grow it."></canvas>
+    <button type="button" class="icon-btn" id="pauseBtn" aria-label="Pause (P)">II</button>
+    <button type="button" class="scream-btn" id="screamBtn" aria-label="Scream (K)">SCREAM<small>K</small></button>
+
+    <section class="screen" id="scrTitle" aria-labelledby="tH">
+      <div class="panel title-panel">
+        <div class="col">
+          <h1 class="logo" id="tH">You are <span>the zombie</span></h1>
+          <p class="tag">The horde runs on its own. Time your jumps, bite everyone, mutate.</p>
+          <div class="row">
+            <button type="button" class="btn big" id="btnPlay">Play</button>
+            <button type="button" class="btn" id="btnShopT">Upgrades</button>
+          </div>
+          <p class="stats">Best <b id="tBest">0</b> &nbsp;·&nbsp; Brains <b class="br" id="tBrains">0</b></p>
+        </div>
+        <div class="col">
+          <h3>Missions</h3>
+          <ol class="missions" id="tMissions"></ol>
+          <p class="keys"><b>Space / W / tap</b> jump, hold for higher · <b>K / Shift</b> scream · <b>P</b> pause · <b>M</b> sound</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrShop" aria-labelledby="shopH" hidden>
+      <div class="panel">
+        <h2 id="shopH">Upgrades</h2>
+        <p class="brainline">Brains: <span id="shopBrains">0</span></p>
+        <ul class="shop" id="shopList"></ul>
+        <button type="button" class="btn" id="btnShopBack">Back</button>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrPause" aria-labelledby="pauseH" hidden>
+      <div class="panel">
+        <h2 id="pauseH">Paused</h2>
+        <div class="row">
+          <button type="button" class="btn big" id="btnResume">Resume</button>
+          <button type="button" class="btn" id="btnMute">Sound: on</button>
+          <button type="button" class="btn ghost" id="btnQuit">Quit run</button>
+        </div>
+        <p class="hint">P or Esc to resume</p>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrOver" aria-labelledby="overH" hidden>
+      <div class="panel">
+        <h2 id="overH">The horde is gone</h2>
+        <div class="scores">
+          <div><span>Score</span><b id="oScore">0</b></div>
+          <div><span>Best</span><b id="oBest">0</b><em class="newbest" id="oNew" hidden>NEW BEST!</em></div>
+          <div class="brains"><span>Brains earned</span><b id="oBrains">0</b></div>
+        </div>
+        <div id="oDoneWrap" hidden>
+          <h3>Missions completed</h3>
+          <ul class="done" id="oDone"></ul>
+        </div>
+        <div class="row" style="justify-content:center">
+          <button type="button" class="btn big" id="btnAgain">Run again</button>
+          <button type="button" class="btn" id="btnShopO">Upgrades</button>
+          <button type="button" class="btn ghost" id="btnMenu">Title</button>
+        </div>
+        <p class="hint">Space or Enter to run again</p>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="pad" id="pad">
+  <button type="button" class="pj" id="padJump" aria-label="Jump (hold for higher)">JUMP</button>
+  <button type="button" class="ps" id="padScream" aria-label="Scream">SCREAM</button>
+</div>
+<p class="sr" id="live" aria-live="polite"></p>
+
+<script>
+// --- sim.js ---
+/* You Are the Zombie v2 - pure game logic (no DOM, no Math.random, no Date). Deterministic from the seed. */
+(function (root) {
+  'use strict';
+
+  // ---------------------------------------------------------------- tunables
+  const CONFIG = {
+    viewWidth: 1280,
+    viewHeight: 720,
+    // speed
+    startSpeed: 300,
+    speedRamp: 2.5,           // px/s per second
+    maxSpeed: 620,
+    runnerSpeedMul: 1.35,
+    // jump physics
+    gravity: 2600,
+    jumpVelocity: 860,
+    jumpHoldMax: 0.2,
+    jumpHoldGravityScale: 0.45,
+    jumpBuffer: 0.12,         // a press slightly before landing still jumps
+    // horde
+    leaderScreenX: 380,
+    followerSpacing: 22,
+    zombieRadius: 12,
+    startHorde: 3,
+    maxHorde: 60,
+    // mutations / scream / combo
+    mutationTime: 7,
+    screamPerBite: 0.07,
+    screamStun: 2,
+    screamInvuln: 1.2,
+    screamPullRange: 450,
+    screamPullSpeed: 380,
+    comboWindow: 1.5,
+    magnetRange: 140,
+    magnetSpeed: 700,
+    spitInterval: 0.35,
+    crawlerDigInterval: 0.6,
+    acidSpeed: 650,
+    acidLife: 0.9,
+    // pickups
+    brainRange: 46,
+    // world
+    biomeLength: 4200,
+    humanHeight: 80,
+    riotHeight: 120,
+    barricadeJumpMax: 110,    // barricades taller than this cannot be jumped
+    carMaxKills: 5,           // a car that ate this many zombies is wrecked and passable
+    holeFill: 20,             // a hole that swallowed this many zombies is filled
+    riotHold: 3,              // shield breaks after stopping this many zombies
+    barricadeChip: 2,         // each zombie lost on a barricade lowers its need by this
+    // enemies
+    bulletDodgeHeight: 70,
+    bulletY: 42,
+    bulletSpeed: 720,
+    soldierFireInterval: 1.0,
+    cureInterval: 1.8,
+    cureKills: 2,
+    cureRadius: 50,
+    cureHeight: 90,
+    scientistBrains: 3,
+    fleeDist: 320,
+    fleeSpeedFrac: 0.42,
+    // generation
+    specialChance: 0.35,
+    safeTime: 6,
+    fairGap: 0.55
+  };
+
+  const BIOMES = [{ name: 'Suburbs' }, { name: 'Downtown' }, { name: 'Quarantine' }];
+  const JOB_MUTATION = { jogger: 'runner', bouncer: 'brute', chef: 'spitter', plumber: 'crawler' };
+  const JOBS = ['jogger', 'bouncer', 'chef', 'plumber'];
+  const HUMAN_KINDS = { civ: 1, jogger: 1, bouncer: 1, chef: 1, plumber: 1, soldier: 1, riot: 1, scientist: 1 };
+  const FLEE_KINDS = { civ: 1, jogger: 1, bouncer: 1, chef: 1, plumber: 1 };
+  const OBSTACLE_DEFAULTS = {
+    car: { w: 200, h: 80, need: 0 },
+    hole: { w: 140, h: 0, need: 0 },
+    barricade: { w: 40, h: 100, need: 3 }
+  };
+  const PROJECTILE_KINDS = { bullet: 1, acid: 1, cure: 1 };
+  const HOLE = -1;
+  const MAX_SUB = 0.05;
+  const MAX_DT = 1;
+
+  function costFn(base) {
+    return function (level) {
+      level = Math.max(0, Math.floor(+level || 0));
+      return Math.round(base * (1 + level) * (1 + level * 0.5));
+    };
+  }
+  const UPGRADES = [
+    { id: 'startHorde', name: 'Bigger Pack', desc: '+1 starting zombie', max: 5, cost: costFn(30) },
+    { id: 'mutation', name: 'Long Mutation', desc: '+1 s mutation time', max: 4, cost: costFn(40) },
+    { id: 'scream', name: 'Big Lungs', desc: '+15% scream charge per bite', max: 4, cost: costFn(30) },
+    { id: 'magnet', name: 'Brain Magnet', desc: '+40 px brain pickup range', max: 3, cost: costFn(25) },
+    { id: 'luck', name: 'Lucky Find', desc: 'Special humans 15% more often', max: 3, cost: costFn(45) }
+  ];
+
+  // mode 'run': best single-run value counts; 'total': accumulates across runs.
+  const MISSION_POOL = [
+    { id: 'bite40', text: 'Bite 40 people in one run', goal: 40, stat: 'bites', mode: 'run', reward: 15 },
+    { id: 'smash3', text: 'Smash 3 barricades', goal: 3, stat: 'barricades', mode: 'total', reward: 15 },
+    { id: 'downtown', text: 'Reach Downtown', goal: 2, stat: 'biomesReached', mode: 'run', reward: 10 },
+    { id: 'brute2', text: 'Be a Brute 2 times', goal: 2, stat: 'mutations.brute', mode: 'total', reward: 15 },
+    { id: 'horde30', text: 'Have a horde of 30', goal: 30, stat: 'maxHorde', mode: 'run', reward: 25 },
+    { id: 'brains25', text: 'Collect 25 brains', goal: 25, stat: 'brainsCollected', mode: 'total', reward: 15 },
+    { id: 'scream2', text: 'Scream 2 times', goal: 2, stat: 'screams', mode: 'total', reward: 10 },
+    { id: 'cars10', text: 'Jump over 10 cars', goal: 10, stat: 'carsJumped', mode: 'total', reward: 20 },
+    { id: 'quarantine', text: 'Reach Quarantine', goal: 3, stat: 'biomesReached', mode: 'run', reward: 20 },
+    { id: 'runner3', text: 'Be a Runner 3 times', goal: 3, stat: 'mutations.runner', mode: 'total', reward: 15 },
+    { id: 'smash10', text: 'Smash 10 things', goal: 10, stat: 'smashes', mode: 'total', reward: 20 },
+    { id: 'spitter2', text: 'Be a Spitter 2 times', goal: 2, stat: 'mutations.spitter', mode: 'total', reward: 15 },
+    { id: 'bite100', text: 'Bite 100 people in one run', goal: 100, stat: 'bites', mode: 'run', reward: 40 },
+    { id: 'crawler2', text: 'Be a Crawler 2 times', goal: 2, stat: 'mutations.crawler', mode: 'total', reward: 15 },
+    { id: 'dist3k', text: 'Run 3 km in one run', goal: 30000, stat: 'distance', mode: 'run', reward: 25 },
+    { id: 'brains100', text: 'Collect 100 brains', goal: 100, stat: 'brainsCollected', mode: 'total', reward: 30 },
+    { id: 'horde50', text: 'Have a horde of 50', goal: 50, stat: 'maxHorde', mode: 'run', reward: 50 },
+    { id: 'loop', text: 'Survive a full city loop', goal: 4, stat: 'biomesReached', mode: 'run', reward: 40 }
+  ];
+  const MISSION_BY_ID = {};
+  MISSION_POOL.forEach(function (m) { MISSION_BY_ID[m.id] = m; });
+
+  // ---------------------------------------------------------------- helpers
+  function rng(seed) {
+    let a = (Math.floor(+seed || 0)) >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function num(v, def) { v = +v; return isFinite(v) ? v : def; }
+  function int0(v) { v = Math.floor(+v); return isFinite(v) && v > 0 ? v : 0; }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function emit(game, ev) { game.events.push(ev); }
+  function statValue(stats, path) {
+    if (!stats) return 0;
+    const parts = String(path).split('.');
+    let v = stats;
+    for (let i = 0; i < parts.length; i++) { v = v == null ? undefined : v[parts[i]]; }
+    v = +v;
+    return isFinite(v) ? v : 0;
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function airTimes(c) {
+    const g = Math.max(1, c.gravity), v = Math.max(1, c.jumpVelocity);
+    const tap = 2 * v / g;
+    const g2 = g * clamp(c.jumpHoldGravityScale, 0.01, 1);
+    let t1 = Math.max(0, c.jumpHoldMax);
+    if (v - g2 * t1 < 0) t1 = v / g2;
+    const v1 = v - g2 * t1;
+    const y1 = v * t1 - 0.5 * g2 * t1 * t1;
+    const ymax = y1 + v1 * v1 / (2 * g);
+    const hold = t1 + v1 / g + Math.sqrt(2 * ymax / g);
+    return { tap: tap, hold: hold, tapPeak: v * v / (2 * g), holdPeak: ymax, t1: t1, g2: g2 };
+  }
+  function jumpY(c, air, t, held) {
+    const g = c.gravity, v = c.jumpVelocity;
+    if (!held) return Math.max(0, v * t - 0.5 * g * t * t);
+    if (t <= air.t1) return v * t - 0.5 * air.g2 * t * t;
+    const v1 = v - air.g2 * air.t1, y1 = v * air.t1 - 0.5 * air.g2 * air.t1 * air.t1, u = t - air.t1;
+    return Math.max(0, y1 + v1 * u - 0.5 * g * u * u);
+  }
+
+  // ---------------------------------------------------------------- saves
+  function nextMissionId(save, activeIds) {
+    const n = MISSION_POOL.length;
+    for (let k = 0; k < n; k++) {
+      const id = MISSION_POOL[save.missionIndex % n].id;
+      save.missionIndex++;
+      if (activeIds.indexOf(id) < 0) return id;
+    }
+    return MISSION_POOL[0].id;
+  }
+  function defaultSave() {
+    return {
+      brains: 0, best: 0,
+      upgrades: { startHorde: 0, mutation: 0, scream: 0, magnet: 0, luck: 0 },
+      missions: [{ id: MISSION_POOL[0].id, progress: 0 }, { id: MISSION_POOL[1].id, progress: 0 }, { id: MISSION_POOL[2].id, progress: 0 }],
+      missionIndex: 3, runs: 0, totalBites: 0
+    };
+  }
+  function normalizeSave(obj) {
+    const s = defaultSave();
+    try {
+      if (!obj || typeof obj !== 'object') return s;
+      s.brains = int0(obj.brains);
+      s.best = int0(obj.best);
+      s.runs = int0(obj.runs);
+      s.totalBites = int0(obj.totalBites);
+      const up = obj.upgrades && typeof obj.upgrades === 'object' ? obj.upgrades : {};
+      UPGRADES.forEach(function (u) { s.upgrades[u.id] = Math.min(u.max, int0(up[u.id])); });
+      const mi = Math.floor(+obj.missionIndex);
+      s.missionIndex = isFinite(mi) && mi >= 0 ? mi : 3;
+      if (!Array.isArray(obj.missions)) return s; // no mission data: keep the default first three
+      const ms = [];
+      const ids = [];
+      {
+        for (let i = 0; i < obj.missions.length && ms.length < 3; i++) {
+          const m = obj.missions[i];
+          if (!m || typeof m !== 'object') continue;
+          const id = typeof m.id === 'string' ? m.id : '';
+          if (!MISSION_BY_ID[id] || ids.indexOf(id) >= 0) continue;
+          ids.push(id);
+          ms.push({ id: id, progress: Math.min(int0(m.progress), MISSION_BY_ID[id].goal) });
+        }
+      }
+      while (ms.length < 3) {
+        const id = nextMissionId(s, ids);
+        ids.push(id);
+        ms.push({ id: id, progress: 0 });
+      }
+      s.missions = ms;
+    } catch (e) {
+      return defaultSave();
+    }
+    return s;
+  }
+  function buyUpgrade(save, id) {
+    const s = normalizeSave(save);
+    const u = UPGRADES.filter(function (x) { return x.id === id; })[0];
+    if (!u) return { ok: false, save: s, reason: 'unknown' };
+    const lvl = s.upgrades[id];
+    if (lvl >= u.max) return { ok: false, save: s, reason: 'max' };
+    const cost = u.cost(lvl);
+    if (s.brains < cost) return { ok: false, save: s, reason: 'brains' };
+    s.brains -= cost;
+    s.upgrades[id] = lvl + 1;
+    return { ok: true, save: s };
+  }
+  function finishRun(save, game) {
+    const s = normalizeSave(save);
+    const g = game || {};
+    const stats = g.stats || {};
+    let earned = int0(g.brains);
+    const done = [];
+    const activeIds = s.missions.map(function (m) { return m.id; });
+    for (let i = 0; i < s.missions.length; i++) {
+      const m = s.missions[i];
+      const def = MISSION_BY_ID[m.id];
+      const v = statValue(stats, def.stat);
+      const p = def.mode === 'total' ? m.progress + v : Math.max(m.progress, v);
+      if (p >= def.goal) {
+        earned += def.reward;
+        done.push(def.text);
+        const nid = nextMissionId(s, activeIds);
+        activeIds[i] = nid;
+        s.missions[i] = { id: nid, progress: 0 };
+      } else {
+        m.progress = Math.floor(p);
+      }
+    }
+    const score = int0(g.score);
+    const newBest = score > s.best;
+    s.brains += earned;
+    if (newBest) s.best = score;
+    s.runs += 1;
+    s.totalBites += int0(stats.bites);
+    return { save: s, earned: { brains: earned, missionsDone: done, newBest: newBest } };
+  }
+
+  // ---------------------------------------------------------------- game creation
+  function makeConfig(opts, save) {
+    const c = {};
+    Object.keys(CONFIG).forEach(function (k) { c[k] = CONFIG[k]; });
+    const o = opts && opts.config && typeof opts.config === 'object' ? opts.config : null;
+    if (o) Object.keys(o).forEach(function (k) { const v = +o[k]; if (isFinite(v)) c[k] = v; });
+    const u = save.upgrades;
+    c.startHorde += u.startHorde;
+    c.mutationTime += u.mutation;
+    c.screamPerBite *= 1 + 0.15 * u.scream;
+    c.brainRange += 40 * u.magnet;
+    c.specialChance *= 1 + 0.15 * u.luck;
+    // safety clamps so junk overrides cannot produce NaN loops
+    c.gravity = Math.max(1, c.gravity);
+    c.maxHorde = Math.max(1, Math.floor(c.maxHorde));
+    c.viewWidth = Math.max(100, c.viewWidth);
+    c.biomeLength = Math.max(100, c.biomeLength);
+    return c;
+  }
+
+  function createGame(opts) {
+    opts = opts || {};
+    const save = normalizeSave(opts.save);
+    const seed = Math.floor(num(opts.seed, 0));
+    const c = makeConfig(opts, save);
+    const game = {
+      status: 'running',
+      seed: seed,
+      empty: !!opts.empty,
+      time: 0, dist: 0,
+      speed: c.startSpeed,
+      cameraX: 0,
+      biome: 0, loop: 0,
+      horde: [], humans: [], obstacles: [], projectiles: [], pickups: [],
+      mutation: { type: null, t: 0, dur: 0 },
+      scream: { charge: 0, active: 0 },
+      score: 0, combo: 0, comboT: 0, multiplier: 1, brains: 0,
+      stats: {
+        bites: 0, smashes: 0, brainsCollected: 0, maxHorde: 0, carsJumped: 0, screams: 0,
+        mutations: { runner: 0, brute: 0, spitter: 0, crawler: 0 },
+        biomesReached: 1, distance: 0, barricades: 0, lost: 0
+      },
+      missions: save.missions.map(function (m) {
+        const def = MISSION_BY_ID[m.id];
+        return { id: m.id, text: def.text, goal: def.goal, progress: Math.min(m.progress, def.goal), done: false, reward: def.reward, _base: m.progress };
+      }),
+      events: [],
+      config: c,
+      rng: rng(seed),
+      invuln: 0,
+      _nextId: 1, _baseSpeed: c.startSpeed, _speedMark: c.startSpeed, _biomeIdx: 0,
+      _jumpBuf: 0, _waves: [], _waveSeq: 0, _pullT: 0, _spitT: 0, _digT: 0,
+      _deadCount: 0, _joins: [], _bitePts: 0, _bonusPts: 0,
+      gen: null
+    };
+    const n = clamp(Math.round(c.startHorde), 1, c.maxHorde);
+    const headX = c.leaderScreenX;
+    for (let i = 0; i < n; i++) {
+      const z = makeZombie(game, headX, 0);
+      z.x = i === 0 ? headX : headX - slotOffset(c, i, z);
+      if (i === 0) { z.leader = true; z.lane = 1; }
+      game.horde.push(z);
+    }
+    game.stats.maxHorde = n;
+    if (!game.empty) {
+      const air = airTimes(c);
+      const st = Math.max(0, c.safeTime);
+      const safeDist = (c.startSpeed * st + 0.5 * Math.max(0, c.speedRamp) * st * st) * Math.max(1, c.runnerSpeedMul);
+      game.gen = {
+        nextX: headX + c.startSpeed * 0.75,
+        safeX: headX + safeDist + 40,
+        jumpFree: 0,
+        lastSpecialX: -1e9,
+        recent: [0, 0],
+        chunkHumans: 0,
+        chunks: 0,
+        airTap: air.tap, airHold: air.hold
+      };
+      generate(game);
+    }
+    return game;
+  }
+
+  function newId(game) { return game._nextId++; }
+
+  function makeZombie(game, x, y) {
+    const id = newId(game);
+    return {
+      id: id, x: x, y: y || 0, vy: 0, lane: id % 3, state: 'run', leader: false, born: game.time, hurt: 0,
+      jumpAtX: null, fromJob: null,
+      _airT: 0, _wave: 0, _pending: 0, _buffered: 0, _dead: false
+    };
+  }
+
+  function slotOffset(c, i, z) {
+    if (i === 0) return 0;
+    const row = 1 + Math.floor((i - 1) / 3);
+    return row * c.followerSpacing + (((z.id * 7) % 9) - 4);
+  }
+
+  function spawn(game, kind, props) {
+    props = props || {};
+    const c = game.config;
+    let obj;
+    if (HUMAN_KINDS[kind]) {
+      const id = newId(game);
+      obj = {
+        id: id, kind: kind, x: 0, y: 0, lane: id % 3, state: 'idle', t: 0,
+        cd: kind === 'soldier' ? 0.6 : kind === 'scientist' ? 0.8 : 0,
+        shield: kind === 'riot', job: JOB_MUTATION[kind] ? kind : null,
+        _stunT: 0, _noBite: 0, _vx: 0, _holds: 0, _disarmed: false, _dead: false
+      };
+      Object.assign(obj, props);
+      obj.id = id;
+      game.humans.push(obj);
+    } else if (OBSTACLE_DEFAULTS[kind]) {
+      const id = newId(game);
+      const d = OBSTACLE_DEFAULTS[kind];
+      obj = { id: id, kind: kind, x: 0, w: d.w, h: d.h, need: d.need, broken: false, _kills: 0, _hit: false, _counted: false };
+      Object.assign(obj, props);
+      obj.id = id;
+      game.obstacles.push(obj);
+    } else if (kind === 'brain') {
+      const id = newId(game);
+      obj = { id: id, kind: 'brain', x: 0, y: 40, taken: false };
+      Object.assign(obj, props);
+      obj.id = id;
+      game.pickups.push(obj);
+    } else if (PROJECTILE_KINDS[kind]) {
+      const id = newId(game);
+      obj = { id: id, kind: kind, x: 0, y: c.bulletY, vx: 0, vy: 0, r: 5, _life: 3, _hits: 0, _dead: false };
+      if (kind === 'bullet') obj.vx = -c.bulletSpeed;
+      if (kind === 'acid') { obj.vx = c.acidSpeed + game.speed; obj.r = 10; obj.y = 40; obj._life = c.acidLife; }
+      if (kind === 'cure') { obj.vx = -70; obj.r = c.cureRadius; obj.y = 35; obj._life = 2.2; }
+      Object.assign(obj, props);
+      obj.id = id;
+      game.projectiles.push(obj);
+    } else if (kind === 'zombie') {
+      obj = makeZombie(game, num(props.x, game.cameraX + c.leaderScreenX - 10), 0);
+      const id = obj.id;
+      Object.assign(obj, props);
+      obj.id = id;
+      if (game.mutation.type === 'crawler') obj.state = 'under';
+      insertZombie(game, obj);
+    } else {
+      return null;
+    }
+    return obj;
+  }
+
+  function insertZombie(game, z) {
+    const c = game.config;
+    const headX = game.cameraX + c.leaderScreenX;
+    const h = game.horde;
+    if (h.length === 0) {
+      z.x = headX; z.leader = true; z.jumpAtX = null; z._pending = 0;
+      h.push(z);
+      return;
+    }
+    if (z.x > headX - 4) z.x = headX - 4;
+    z.leader = false;
+    let i = 1;
+    while (i < h.length && h[i].x >= z.x) i++;
+    h.splice(i, 0, z);
+    // queue any pending jump waves ahead of it
+    let last = 0;
+    z.jumpAtX = null; z._pending = 0;
+    for (let k = 0; k < game._waves.length; k++) {
+      const w = game._waves[k];
+      if (w.x <= z.x) last = w.id;
+      else { z.jumpAtX = w.x; z._pending = w.id; break; }
+    }
+    if (!z._pending) z._pending = 0;
+    void last;
+  }
+
+  // ---------------------------------------------------------------- step
+  function step(game, input, dt) {
+    if (!game) return game;
+    game.events = [];
+    if (game.status !== 'running') return game;
+    input = input || {};
+    dt = +dt;
+    if (!(dt > 0) || !isFinite(dt)) return game;
+    if (dt > MAX_DT) dt = MAX_DT;
+    const n = Math.max(1, Math.ceil(dt / MAX_SUB - 1e-9));
+    const h = dt / n;
+    for (let i = 0; i < n && game.status === 'running'; i++) substep(game, input, h, i === 0);
+    return game;
+  }
+
+  function substep(game, input, h, first) {
+    const c = game.config;
+    game.time += h;
+    // speed
+    const base = Math.max(10, Math.min(c.maxSpeed, c.startSpeed + c.speedRamp * game.time));
+    game._baseSpeed = base;
+    while (base >= game._speedMark + 40) {
+      game._speedMark += 40;
+      emit(game, { type: 'speedUp', speed: Math.round(base) });
+    }
+    game.speed = base * (game.mutation.type === 'runner' ? c.runnerSpeedMul : 1);
+    game.cameraX += game.speed * h;
+    game.dist = game.cameraX;
+    const headX = game.cameraX + c.leaderScreenX;
+
+    // biome
+    const bIdx = Math.floor(game.dist / c.biomeLength);
+    if (bIdx !== game._biomeIdx) {
+      game._biomeIdx = bIdx;
+      game.biome = bIdx % 3;
+      game.loop = Math.floor(bIdx / 3);
+      game.stats.biomesReached++;
+      emit(game, { type: 'biome', biome: game.biome, name: BIOMES[game.biome].name });
+    }
+
+    if (!game.empty && game.gen) generate(game);
+
+    // timers
+    if (game.scream.active > 0) game.scream.active = Math.max(0, game.scream.active - h);
+    if (game.invuln > 0) game.invuln = Math.max(0, game.invuln - h);
+    if (game._pullT > 0) game._pullT = Math.max(0, game._pullT - h);
+    if (game.comboT > 0) {
+      game.comboT -= h;
+      if (game.comboT <= 0) { game.comboT = 0; game.combo = 0; game.multiplier = 1; }
+    }
+
+    // input
+    if (first) {
+      if (input.scream) doScream(game);
+      if (input.jumpPressed) game._jumpBuf = Math.max(c.jumpBuffer, h * 1.01);
+    }
+    if (game._jumpBuf > 0) {
+      const L = game.horde[0];
+      if (L && L.state === 'run' && game.mutation.type !== 'crawler') {
+        leaderJump(game, L);
+        game._jumpBuf = 0;
+      } else {
+        game._jumpBuf = Math.max(0, game._jumpBuf - h);
+      }
+    }
+
+    updateHorde(game, input, h, headX);
+    collideObstacles(game, headX);
+    updateHumans(game, h, headX);
+    updateProjectiles(game, h, headX);
+    updatePickups(game);
+    compactHorde(game, headX);
+
+    // mutation
+    const m = game.mutation;
+    if (m.type) {
+      m.t -= h;
+      if (m.type === 'spitter' && game.horde.length) {
+        game._spitT -= h;
+        if (game._spitT <= 0) {
+          game._spitT = c.spitInterval;
+          const L = game.horde[0];
+          spawn(game, 'acid', { x: L.x + 20, y: L.y + 40, vx: c.acidSpeed + game.speed });
+        }
+      }
+      // Crawlers dig up buried brains (they cannot bite while under)
+      if (m.type === 'crawler' && !game.empty && game.horde.length) {
+        game._digT -= h;
+        if (game._digT <= 0) {
+          game._digT = c.crawlerDigInterval;
+          spawn(game, 'brain', { x: headX + 60 + game.speed * 0.15, y: 12 });
+        }
+      }
+      if (m.t <= 0) endMutation(game);
+    }
+
+    // hurt flash
+    for (let i = 0; i < game.horde.length; i++) {
+      const z = game.horde[i];
+      if (z.hurt > 0) z.hurt = Math.max(0, z.hurt - h);
+    }
+
+    cleanup(game);
+
+    // stats, score, missions
+    const st = game.stats;
+    if (game.horde.length > st.maxHorde) st.maxHorde = game.horde.length;
+    st.distance = Math.floor(game.dist);
+    game.score = Math.floor(game.dist / 10) + game._bitePts + st.smashes * 50 + st.brainsCollected * 5 + game._bonusPts;
+    updateMissions(game);
+
+    if (game.horde.length === 0) {
+      game.status = 'over';
+      emit(game, { type: 'gameOver', score: game.score, dist: Math.floor(game.dist) });
+    }
+  }
+
+  function updateMissions(game) {
+    for (let i = 0; i < game.missions.length; i++) {
+      const m = game.missions[i];
+      if (m.done) continue;
+      const def = MISSION_BY_ID[m.id];
+      if (!def) continue;
+      const v = statValue(game.stats, def.stat);
+      const p = def.mode === 'total' ? m._base + v : Math.max(m._base, v);
+      m.progress = Math.min(def.goal, Math.floor(p));
+      if (p >= def.goal) {
+        m.done = true;
+        emit(game, { type: 'mission', text: def.text, reward: def.reward });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- horde
+  function findWave(game, id) {
+    const ws = game._waves;
+    for (let i = 0; i < ws.length; i++) if (ws[i].id === id) return ws[i];
+    return null;
+  }
+  function nextWave(game, id) {
+    const ws = game._waves;
+    for (let i = 0; i < ws.length; i++) if (ws[i].id > id) return ws[i];
+    return null;
+  }
+
+  function leaderJump(game, L) {
+    const c = game.config;
+    const w = { id: ++game._waveSeq, x: L.x, hold: 0, holding: true };
+    game._waves.push(w);
+    zJump(L, w.id, c);
+    for (let i = 1; i < game.horde.length; i++) {
+      const z = game.horde[i];
+      if (z.jumpAtX === null && z.x < w.x) { z.jumpAtX = w.x; z._pending = w.id; }
+    }
+    emit(game, { type: 'jump', x: L.x });
+  }
+  function zJump(z, waveId, c) {
+    z.state = 'air';
+    z.vy = c.jumpVelocity;
+    z._airT = 0;
+    z._wave = waveId;
+    z._buffered = 0;
+  }
+
+  // returns support height under x for something currently at height y; HOLE if over an open hole
+  function support(game, x, y, out) {
+    const c = game.config, zr = c.zombieRadius;
+    const obs = game.obstacles;
+    let s = 0, hole = null;
+    for (let i = 0; i < obs.length; i++) {
+      const o = obs[i];
+      if (o.broken) continue;
+      if (o.kind === 'car') {
+        if (x + zr > o.x && x - zr < o.x + o.w && y >= o.h - 2 && o.h > s) s = o.h;
+      } else if (o.kind === 'hole') {
+        if (x > o.x + zr * 0.5 && x < o.x + o.w - zr * 0.5) hole = o;
+      }
+    }
+    if (s > 0) return s;
+    if (hole) { if (out) out.hole = hole; return HOLE; }
+    return 0;
+  }
+  const supOut = { hole: null };
+
+  function canSurface(game, z) {
+    const c = game.config, zr = c.zombieRadius;
+    const obs = game.obstacles;
+    for (let i = 0; i < obs.length; i++) {
+      const o = obs[i];
+      if (o.broken) continue;
+      // stay under while a jump hazard is closer than a comfortable reaction distance
+      const pad = o.kind === 'barricade' && o.h > c.barricadeJumpMax ? 20 : 20 + game.speed * 0.4;
+      if (z.x + zr + pad > o.x && z.x - zr - 10 < o.x + o.w) return false;
+    }
+    const hs = game.humans;
+    const rpad = 40 + game.speed * 0.4;
+    for (let i = 0; i < hs.length; i++) {
+      const hm = hs[i];
+      if (hm.kind === 'riot' && hm.shield && !hm._dead && hm.x - z.x < rpad && z.x - hm.x < zr + 20) return false;
+    }
+    return true;
+  }
+
+  function fallInHole(game, z, hole) {
+    if (lose(game, z, 'hole')) {
+      hole._kills++;
+      if (hole._kills >= Math.max(1, Math.round(game.config.holeFill * hole.w / 150 * (1 + 1.0 * (game.time / 60 + game.loop))))) hole.broken = true;
+      return true;
+    }
+    return false;
+  }
+
+  function landZ(game, z, s, isLeader) {
+    z.y = s; z.vy = 0; z.state = 'run'; z._airT = 0;
+    if (isLeader) emit(game, { type: 'land', x: z.x });
+    if (z._buffered && !isLeader) {
+      const id = z._buffered;
+      zJump(z, id, game.config);
+    }
+  }
+
+  function updateHorde(game, input, h, headX) {
+    const c = game.config;
+    const horde = game.horde;
+    const speed = game.speed;
+    const crawl = game.mutation.type === 'crawler';
+    for (let i = 0; i < horde.length; i++) {
+      const z = horde[i];
+      if (z._dead) continue;
+      // horizontal
+      if (i === 0) {
+        z.x = headX;
+      } else {
+        const target = headX - slotOffset(c, i, z);
+        let vx = speed + clamp((target - z.x) * 4, -0.45 * speed, 0.6 * speed + 40);
+        if (!(vx > 0)) vx = speed * 0.5;
+        z.x += vx * h;
+        if (z.x > headX - 4) z.x = headX - 4;
+        if (z.x < game.cameraX - 600) z.x = game.cameraX - 600;
+        // jump wave trigger
+        if (z.jumpAtX !== null && z.x >= z.jumpAtX) {
+          const wid = z._pending;
+          if (z.state === 'run' && !crawl) zJump(z, wid, c);
+          else if (z.state === 'air') z._buffered = wid;
+          const nw = nextWave(game, wid);
+          if (nw) { z._pending = nw.id; z.jumpAtX = nw.x; } else { z._pending = 0; z.jumpAtX = null; }
+        }
+      }
+      // vertical
+      const prevY = z.y;
+      if (z.state === 'under') {
+        z.y = 0; z.vy = 0;
+        // after the Crawler ends, each zombie pops up as soon as it is not under a hazard
+        if (!crawl && (i === 0 || horde[i - 1].state !== 'under') && canSurface(game, z)) z.state = 'run';
+      } else if (z.state === 'air') {
+        let g = c.gravity;
+        if (z.vy > 0 && z._wave) {
+          const w = findWave(game, z._wave);
+          if (w) {
+            if (i === 0 && w.holding) {
+              if (input.jumpHeld && z._airT < c.jumpHoldMax) w.hold = Math.min(c.jumpHoldMax, z._airT + h);
+              else w.holding = false;
+            }
+            if (z._airT < w.hold) g *= c.jumpHoldGravityScale;
+          }
+        }
+        z.vy -= g * h;
+        z.y += z.vy * h;
+        z._airT += h;
+        if (z.vy <= 0) {
+          supOut.hole = null;
+          const s = support(game, z.x, prevY, supOut);
+          if (s === HOLE) {
+            if (z.y <= 0) {
+              if (game.invuln > 0) landZ(game, z, 0, i === 0);
+              else fallInHole(game, z, supOut.hole);
+            }
+          } else if (z.y <= s) {
+            landZ(game, z, s, i === 0);
+          }
+        }
+      } else {
+        supOut.hole = null;
+        const s = support(game, z.x, z.y, supOut);
+        if (s === HOLE) {
+          if (game.invuln <= 0) fallInHole(game, z, supOut.hole);
+        } else if (s < z.y - 0.5) {
+          z.state = 'air'; z.vy = 0; z._airT = 1; z._wave = 0;
+        } else {
+          z.y = s;
+        }
+      }
+      if (!isFinite(z.y)) { z.y = 0; z.vy = 0; z.state = crawl ? 'under' : 'run'; }
+    }
+    // the leader stops controlling the hold once it lands or releases
+    const ws = game._waves;
+    if (ws.length) {
+      const L = horde[0];
+      for (let k = 0; k < ws.length; k++) {
+        if (ws[k].holding && (!L || L._wave !== ws[k].id || L.state !== 'air')) ws[k].holding = false;
+      }
+      if (ws.length > 8 || ws[0].x < game.cameraX - 500) {
+        game._waves = ws.filter(function (w) { return w.holding || w.x >= game.cameraX - 500; });
+        if (game._waves.length > 8) game._waves = game._waves.slice(-8);
+      }
+    }
+  }
+
+  function aliveCount(game) { return game.horde.length - game._deadCount; }
+
+  function lose(game, z, cause) {
+    if (z._dead) return false;
+    if (game.invuln > 0) { z.hurt = 0.2; return false; }
+    z._dead = true;
+    game._deadCount++;
+    game.stats.lost++;
+    game.combo = 0; game.comboT = 0; game.multiplier = 1;
+    emit(game, { type: 'lost', x: z.x, y: z.y, cause: cause });
+    return true;
+  }
+
+  function smash(game, x, kind) {
+    game.stats.smashes++;
+    if (kind === 'barricade') game.stats.barricades++;
+    emit(game, { type: 'smash', x: x, kind: kind });
+  }
+
+  function collideObstacles(game, headX) {
+    const c = game.config, zr = c.zombieRadius;
+    const obs = game.obstacles, horde = game.horde;
+    const brute = game.mutation.type === 'brute';
+    for (let k = 0; k < obs.length; k++) {
+      const o = obs[k];
+      if (o.kind === 'car' && !o._counted && headX > o.x + o.w) {
+        o._counted = true;
+        if (!o._hit && !o.broken) game.stats.carsJumped++;
+      }
+      if (o.broken || o.kind === 'hole') continue;
+      if (o.x > headX + zr + 2) continue;
+      if (o.x + o.w < game.cameraX - 700) continue;
+      for (let i = 0; i < horde.length; i++) {
+        const z = horde[i];
+        if (z._dead || z.state === 'under') continue;
+        if (!(z.x + zr > o.x && z.x - zr < o.x + o.w)) continue;
+        if (o.kind === 'car') {
+          if (z.y < o.h - 2) {
+            if (brute) { o.broken = true; smash(game, o.x + o.w / 2, 'car'); break; }
+            if (lose(game, z, 'car')) {
+              o._hit = true;
+              o._kills++;
+              if (o._kills >= Math.round(c.carMaxKills * (1 + 1.0 * (game.time / 60 + game.loop)))) { o.broken = true; break; }
+            }
+          }
+        } else if (o.kind === 'barricade') {
+          const tall = o.h > c.barricadeJumpMax;
+          if (tall || z.y < o.h) {
+            if (brute || aliveCount(game) >= o.need) {
+              o.broken = true;
+              smash(game, o.x + o.w / 2, 'barricade');
+              break;
+            }
+            if (lose(game, z, 'barricade')) {
+              o.need = Math.max(1, o.need - c.barricadeChip);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function compactHorde(game, headX) {
+    const c = game.config;
+    if (game._deadCount > 0) {
+      game.horde = game.horde.filter(function (z) { return !z._dead; });
+      game._deadCount = 0;
+    }
+    const joins = game._joins;
+    if (joins.length) {
+      for (let i = 0; i < joins.length; i++) {
+        if (game.horde.length >= c.maxHorde) break;
+        const j = joins[i];
+        const z = makeZombie(game, j.x, 0);
+        z.fromJob = j.fromJob;
+        if (game.mutation.type === 'crawler') z.state = 'under';
+        insertZombie(game, z);
+        emit(game, { type: 'join', id: z.id, x: j.x });
+      }
+      game._joins = [];
+    }
+    const L = game.horde[0];
+    if (L && !L.leader) {
+      L.leader = true;
+      L.x = headX;
+      L.jumpAtX = null;
+      L._pending = 0;
+      L.hurt = 0.3;
+    }
+  }
+
+  // ---------------------------------------------------------------- humans
+  function bite(game, hm) {
+    const c = game.config;
+    if (hm._dead) return;
+    hm._dead = true;
+    const st = game.stats;
+    st.bites++;
+    game.combo = game.comboT > 0 ? game.combo + 1 : 1;
+    game.comboT = c.comboWindow;
+    game.multiplier = Math.min(5, 1 + Math.floor(game.combo / 5));
+    game._bitePts += 10 * game.multiplier;
+    game.scream.charge = Math.min(1, game.scream.charge + c.screamPerBite);
+    const job = JOB_MUTATION[hm.kind] ? hm.kind : null;
+    if (hm.kind === 'scientist') { game.brains += c.scientistBrains; game._bonusPts += 15; }
+    if (aliveCount(game) + game._joins.length < c.maxHorde) {
+      game._joins.push({ x: hm.x, fromJob: hm.kind === 'civ' ? null : hm.kind });
+    }
+    emit(game, { type: 'bite', x: hm.x, y: hm.y, kind: hm.kind, job: job, combo: game.combo, multiplier: game.multiplier });
+    if (job) startMutation(game, JOB_MUTATION[job]);
+  }
+
+  function startMutation(game, type) {
+    const c = game.config, m = game.mutation;
+    if (m.type) endMutation(game);
+    m.type = type;
+    m.t = m.dur = Math.max(0.1, c.mutationTime);
+    game.stats.mutations[type]++;
+    // The contract's `{ type }` field collides with the event type, so the mutation name is in `mutation` (and `name`).
+    emit(game, { type: 'mutation', mutation: type, name: type });
+    if (type === 'crawler') {
+      for (let i = 0; i < game.horde.length; i++) {
+        const z = game.horde[i];
+        z.state = 'under'; z.y = 0; z.vy = 0; z.jumpAtX = null; z._pending = 0; z._buffered = 0;
+      }
+      game._waves = [];
+      game._jumpBuf = 0;
+    }
+    if (type === 'spitter') game._spitT = 0;
+    if (type === 'crawler') game._digT = 0.3;
+  }
+  function endMutation(game) {
+    const m = game.mutation;
+    const type = m.type;
+    if (!type) return;
+    m.type = null; m.t = 0;
+    if (type === 'crawler') {
+      for (let i = 0; i < game.horde.length; i++) {
+        const z = game.horde[i];
+        if (z.state === 'under' && (i === 0 || game.horde[i - 1].state !== 'under') && canSurface(game, z)) { z.state = 'run'; z.y = 0; z.vy = 0; }
+      }
+    }
+    emit(game, { type: 'mutationEnd', mutation: type, name: type });
+  }
+
+  function doScream(game) {
+    const c = game.config;
+    if (game.scream.charge < 1 - 1e-9 || !game.horde.length) return;
+    game.scream.charge = 0;
+    game.scream.active = c.screamStun;
+    game.invuln = c.screamInvuln;
+    game._pullT = c.screamStun;
+    game.stats.screams++;
+    const headX = game.cameraX + c.leaderScreenX;
+    emit(game, { type: 'scream', x: headX });
+    const left = game.cameraX - 40, right = game.cameraX + c.viewWidth + 40;
+    for (let i = 0; i < game.humans.length; i++) {
+      const hm = game.humans[i];
+      if (hm._dead || hm.x < left || hm.x > right) continue;
+      hm.state = 'stunned';
+      hm._stunT = c.screamStun;
+      if (hm.kind === 'riot' && hm.shield) { hm.shield = false; smash(game, hm.x, 'riot'); }
+      if (hm.kind === 'soldier') hm._disarmed = true;
+    }
+    for (let i = 0; i < game.projectiles.length; i++) {
+      const p = game.projectiles[i];
+      if ((p.kind === 'bullet' || p.kind === 'cure') && p.x > left && p.x < right) p._dead = true;
+    }
+  }
+
+  function updateHumans(game, h, headX) {
+    const c = game.config, zr = c.zombieRadius;
+    const hs = game.humans, horde = game.horde;
+    const base = game._baseSpeed;
+    const mt = game.mutation.type;
+    const runner = mt === 'runner', brute = mt === 'brute';
+    const viewR = game.cameraX + c.viewWidth;
+    for (let k = 0; k < hs.length; k++) {
+      const hm = hs[k];
+      if (hm._dead) continue;
+      hm.t += h;
+      if (hm._noBite > 0) hm._noBite -= h;
+      // AI
+      if (hm.state === 'stunned') {
+        hm._stunT -= h;
+        if (hm._stunT <= 0) { hm._stunT = 0; hm.state = 'idle'; }
+      } else {
+        if (hm._vx) {
+          hm.x += hm._vx * h;
+        } else if (FLEE_KINDS[hm.kind]) {
+          if (hm.state === 'idle' && hm.x - headX < c.fleeDist && hm.x > headX - 30) hm.state = 'flee';
+          if (hm.state === 'flee') hm.x += base * (hm.kind === 'jogger' ? 0.55 : c.fleeSpeedFrac) * h;
+          else hm.x += Math.sin(hm.t * 1.7 + hm.id) * 14 * h;
+        }
+        if (hm.kind === 'soldier' && !hm._disarmed) {
+          if (hm.x < viewR - 20 && hm.x > headX + 40) {
+            hm.cd -= h;
+            if (hm.cd <= 0) {
+              hm.cd = c.soldierFireInterval * (0.85 + 0.3 * game.rng()) / (1 + 0.6 * (game.time / 60 + game.loop));
+              spawn(game, 'bullet', { x: hm.x - 18, y: c.bulletY, vx: -c.bulletSpeed, r: 5, _life: 4 });
+            }
+          }
+        } else if (hm.kind === 'scientist') {
+          if (hm.x < viewR - 20 && hm.x > headX + 60 && hm.x < headX + 760) {
+            hm.cd -= h;
+            if (hm.cd <= 0) {
+              hm.cd = c.cureInterval;
+              spawn(game, 'cure', { x: hm.x - 45, y: 35, vx: -70, r: c.cureRadius, _life: 2.2 });
+            }
+          }
+        }
+      }
+      // pulls
+      const shielded = hm.kind === 'riot' && hm.shield;
+      if (!shielded && hm._noBite <= 0) {
+        if (runner && hm.x > headX - 300 && hm.x - headX < c.magnetRange) {
+          if (hm.x > headX) hm.x = Math.max(headX, hm.x - c.magnetSpeed * h);
+        }
+        if (game._pullT > 0 && hm.x > headX && hm.x < headX + c.screamPullRange) {
+          hm.x = Math.max(headX, hm.x - c.screamPullSpeed * h);
+        }
+      }
+      // contacts
+      if (hm._noBite > 0 || mt === 'crawler') continue;
+      const hh = hm.kind === 'riot' ? c.riotHeight : c.humanHeight;
+      const reach = zr + 12;
+      for (let i = 0; i < horde.length; i++) {
+        const z = horde[i];
+        if (z._dead || z.state === 'under') continue;
+        const dx = z.x - hm.x;
+        if (dx > reach) continue;
+        if (dx < -reach) continue;
+        if (z.y >= hh) continue;
+        // touch
+        if (hm.kind === 'riot' && hm.shield && hm.state !== 'stunned' && game.invuln <= 0) {
+          if (brute) { hm._dead = true; smash(game, hm.x, 'riot'); break; }
+          if (lose(game, z, 'riot')) {
+            hm._holds++;
+            if (hm._holds >= c.riotHold) hm.shield = false;
+          }
+          break;
+        }
+        if (brute && (hm.kind === 'soldier' || hm.kind === 'riot')) {
+          hm._dead = true; smash(game, hm.x, hm.kind); break;
+        }
+        bite(game, hm);
+        break;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- projectiles & pickups
+  function updateProjectiles(game, h, headX) {
+    const c = game.config, zr = c.zombieRadius;
+    const ps = game.projectiles, horde = game.horde;
+    const back = game.speed * h;
+    for (let k = 0; k < ps.length; k++) {
+      const p = ps[k];
+      if (p._dead) continue;
+      const prevX = p.x;
+      p.x += p.vx * h;
+      p.y += p.vy * h;
+      p._life -= h;
+      if (!isFinite(p.x) || !isFinite(p.y)) { p._dead = true; continue; }
+      if (p.kind === 'bullet') {
+        if (p.x < game.cameraX - 150) { p._dead = true; continue; }
+        const lo = Math.min(p.x, prevX) - p.r, hi = Math.max(p.x, prevX) + p.r;
+        for (let i = 0; i < horde.length; i++) {
+          const z = horde[i];
+          if (z._dead || z.state === 'under') continue;
+          if (z.x + zr < lo || z.x - zr - back > hi) continue;
+          if (z.y > c.bulletDodgeHeight) continue;
+          p._dead = true;
+          lose(game, z, 'bullet');
+          break;
+        }
+      } else if (p.kind === 'acid') {
+        const lo = Math.min(p.x, prevX) - p.r - 14, hi = Math.max(p.x, prevX) + p.r + 14;
+        const hs = game.humans;
+        for (let i = 0; i < hs.length; i++) {
+          const hm = hs[i];
+          if (hm._dead || hm.x < lo || hm.x > hi || hm._noBite > 0) continue;
+          p._dead = true;
+          if (hm.kind === 'soldier') { hm._dead = true; smash(game, hm.x, 'soldier'); }
+          else if (hm.kind === 'riot' && hm.shield) { hm.shield = false; smash(game, hm.x, 'riot'); }
+          else bite(game, hm);
+          break;
+        }
+      } else if (p.kind === 'cure') {
+        for (let i = 0; i < horde.length; i++) {
+          const z = horde[i];
+          if (z._dead || z.state === 'under') continue;
+          if (Math.abs(z.x - p.x) > p.r || z.y > c.cureHeight) continue;
+          if (lose(game, z, 'cure')) {
+            spawn(game, 'civ', { x: z.x, state: 'flee', _vx: -170, _noBite: 1.6, lane: z.lane });
+            p._hits++;
+            if (p._hits >= c.cureKills + Math.floor((game.time / 60 + game.loop) / 2.5)) { p._dead = true; break; }
+          }
+        }
+      }
+      if (p._life <= 0) p._dead = true;
+    }
+    void headX;
+  }
+
+  function updatePickups(game) {
+    const c = game.config;
+    const r = c.brainRange, r2 = r * r;
+    const ps = game.pickups, horde = game.horde;
+    for (let k = 0; k < ps.length; k++) {
+      const p = ps[k];
+      if (p.taken) continue;
+      for (let i = 0; i < horde.length; i++) {
+        const z = horde[i];
+        if (z._dead) continue;
+        const dx = z.x - p.x;
+        if (dx > r || dx < -r) continue;
+        // crawlers snatch brains from below at any height (keeps the crawler window eventful)
+        const dy = z.state === 'under' ? 0 : z.y + 30 - p.y;
+        if (dx * dx + dy * dy <= r2) {
+          p.taken = true;
+          game.brains++;
+          game.stats.brainsCollected++;
+          emit(game, { type: 'brain', x: p.x, y: p.y });
+          break;
+        }
+      }
+    }
+  }
+
+  function cleanup(game) {
+    const c = game.config;
+    const behind = game.cameraX - c.viewWidth;
+    const ahead = game.cameraX + c.viewWidth * 3;
+    let hs = game.humans, keep = true;
+    for (let i = 0; i < hs.length; i++) if (hs[i]._dead || hs[i].x < behind) { keep = false; break; }
+    if (!keep) game.humans = hs.filter(function (o) { return !o._dead && o.x >= behind; });
+    const os = game.obstacles;
+    for (let i = 0; i < os.length; i++) if (os[i].x + os[i].w < behind) { game.obstacles = os.filter(function (o) { return o.x + o.w >= behind; }); break; }
+    const ps = game.projectiles;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (p._dead || p.x < behind || p.x > ahead) { game.projectiles = ps.filter(function (o) { return !o._dead && o.x >= behind && o.x <= ahead; }); break; }
+    }
+    const pk = game.pickups;
+    for (let i = 0; i < pk.length; i++) if (pk[i].taken || pk[i].x < behind) { game.pickups = pk.filter(function (o) { return !o.taken && o.x >= behind; }); break; }
+  }
+
+  // ---------------------------------------------------------------- generation
+  function generate(game) {
+    const c = game.config, g = game.gen;
+    const limit = game.cameraX + c.viewWidth * 2.6;
+    let guard = 0;
+    while (g.nextX < limit && guard++ < 30) genChunk(game);
+  }
+
+  function ri(game, a, b) { return a + Math.floor(game.rng() * (b - a + 1)); }
+  function rf(game, a, b) { return a + game.rng() * (b - a); }
+
+  function genChunk(game) {
+    const c = game.config, g = game.gen;
+    const headX = game.cameraX + c.leaderScreenX;
+    const x0 = g.nextX;
+    const bs = Math.max(50, game._baseSpeed);
+    const tArr = game.time + Math.max(0, x0 - headX) / bs;
+    const sp = Math.max(60, Math.min(c.maxSpeed, c.startSpeed + c.speedRamp * tArr));
+    const segIdx = Math.floor(Math.max(0, x0 - c.leaderScreenX) / c.biomeLength);
+    const biome = segIdx % 3, loop = Math.floor(segIdx / 3);
+    const d = tArr / 60 + loop;
+    const ctx = { x0: x0, sp: sp, d: d, biome: biome, loop: loop };
+    g.chunkHumans = 0;
+    let end;
+    if (x0 < g.safeX) {
+      ctx.intro = true;
+      end = tplCrowd(game, ctx, g.chunks > 0);
+      if (end > g.safeX && g.jumpFree < g.safeX) g.jumpFree = g.safeX;
+    } else {
+      if (g.jumpFree < g.safeX) g.jumpFree = g.safeX;
+      const w = [
+        ['crowd', Math.max(0.3, 1.4 - 0.3 * d)],
+        ['car', 2],
+        ['hole', 1.4 + 0.25 * d],
+        ['barricade', 1.1 + 0.25 * d],
+        ['soldier', d >= 0.4 ? (0.8 + 1.0 * d) * (biome === 2 ? 1.8 : 1) : 0],
+        ['riot', d >= 0.7 ? 0.5 + 0.3 * d : 0],
+        ['scientist', (biome === 2 || loop >= 1) && d >= 0.5 ? (biome === 2 ? 1.5 : 0.6) * (1 + 0.15 * d) : 0],
+        ['mixed', d >= 1 ? 0.3 + 0.3 * d : 0]
+      ];
+      let tot = 0;
+      for (let i = 0; i < w.length; i++) { if (w[i][0] === g.last && w[i][0] !== 'crowd') w[i][1] *= 0.4; tot += w[i][1]; }
+      let r = game.rng() * tot, pick = 'crowd';
+      for (let i = 0; i < w.length; i++) { r -= w[i][1]; if (r <= 0) { pick = w[i][0]; break; } }
+      // tutorial order: first a barricade you can smash, then a car to jump
+      g.hazards = (g.hazards || 0) + 1;
+      if (g.hazards === 1) { pick = 'barricade'; ctx.easy = true; }
+      else if (g.hazards === 2) pick = 'car';
+      else if (g.hazards === 3) pick = 'crowd';
+      g.last = pick;
+      end = TEMPLATES[pick](game, ctx);
+    }
+    g.recent = [g.chunkHumans, g.recent[0]];
+    g.chunks++;
+    if (!(end > x0)) end = x0 + sp;
+    g.nextX = end;
+  }
+
+  function addHuman(game, kind, x, extra) {
+    const o = { x: x, lane: ri(game, 0, 2), t: game.rng() * 6 };
+    if (extra) Object.assign(o, extra);
+    game.gen.chunkHumans++;
+    return spawn(game, kind, o);
+  }
+
+  function placeCrowd(game, ctx, x, n, allowSpecial) {
+    const c = game.config, g = game.gen;
+    let px = x;
+    for (let k = 0; k < n; k++) {
+      addHuman(game, 'civ', px);
+      px += rf(game, 16, 34);
+    }
+    if (allowSpecial && x - g.lastSpecialX > ctx.sp * Math.max(3, c.mutationTime) * 1.8 && game.rng() < c.specialChance) {
+      g.lastSpecialX = x;
+      px += 30;
+      addHuman(game, JOBS[ri(game, 0, JOBS.length - 1)], px);
+      px += 20;
+    }
+    return px;
+  }
+
+  function crowdChance(ctx) { return clamp(0.4 - 0.07 * ctx.d, 0.05, 0.4); }
+  function smallCrowd(game, ctx) { return ri(game, 3, 4); }
+  function crowdSize(game, ctx) { return ri(game, 3, 6 + Math.min(2, Math.floor(ctx.d))); }
+
+  function markJump(game, ctx, start, end) {
+    const c = game.config, g = game.gen;
+    // worst case: a full held jump taken at the hazard edge, possibly at Runner speed
+    const sp = ctx.sp * Math.max(1, c.runnerSpeedMul);
+    const land = Math.max(start + g.airHold * sp, end + 0.3 * sp);
+    g.jumpFree = Math.max(g.jumpFree, land + c.fairGap * sp * 1.1 + 2 * c.zombieRadius);
+  }
+
+  function brainArc(game, ctx, sx, held) {
+    const c = game.config, g = game.gen;
+    const air = airTimes(c);
+    const T = held ? g.airHold : g.airTap;
+    for (let k = 1; k <= 5; k++) {
+      const t = T * k / 6;
+      spawn(game, 'brain', { x: sx + ctx.sp * t, y: jumpY(c, air, t, held) + 30 });
+    }
+  }
+  function brainLine(game, x, n) {
+    for (let k = 0; k < n; k++) spawn(game, 'brain', { x: x + k * 42, y: 30 });
+    return x + n * 42;
+  }
+
+  function tplCrowd(game, ctx, allowSpecial) {
+    const sp = ctx.sp;
+    const n = ctx.intro ? ri(game, 4, 6) : crowdSize(game, ctx);
+    let x = placeCrowd(game, ctx, ctx.x0 + sp * rf(game, ctx.intro ? 0.6 : 0.3, ctx.intro ? 0.9 : 0.55), n, allowSpecial !== false);
+    if (game.rng() < 0.5) x = brainLine(game, x + 60, 3);
+    return x + sp * rf(game, 0.4, 0.65);
+  }
+
+  function tplCar(game, ctx, noCrowd) {
+    const g = game.gen, sp = ctx.sp;
+    const start = Math.max(ctx.x0 + sp * 0.5, g.jumpFree);
+    const w = rf(game, 180, 230);
+    spawn(game, 'car', { x: start, w: w, h: 80 });
+    brainArc(game, ctx, start - sp * 0.25, false);
+    markJump(game, ctx, start, start + w);
+    let end = start + w + sp * 0.3;
+    if (!noCrowd && game.rng() < crowdChance(ctx)) end = placeCrowd(game, ctx, start + w + sp * rf(game, 0.4, 0.6), smallCrowd(game, ctx), true);
+    return end + sp * 0.3;
+  }
+
+  function tplHole(game, ctx, noCrowd) {
+    const g = game.gen, sp = ctx.sp;
+    const start = Math.max(ctx.x0 + sp * 0.5, g.jumpFree);
+    const maxW = Math.max(90, Math.min(200, sp * 0.48));
+    const w = rf(game, 90, maxW);
+    spawn(game, 'hole', { x: start, w: w });
+    brainArc(game, ctx, start + w / 2 - sp * g.airHold / 2, true);
+    markJump(game, ctx, start, start + w);
+    let end = start + w + sp * 0.3;
+    if (!noCrowd && game.rng() < crowdChance(ctx)) end = placeCrowd(game, ctx, start + w + sp * rf(game, 0.45, 0.65), smallCrowd(game, ctx), true);
+    return end + sp * 0.3;
+  }
+
+  function tplBarricade(game, ctx) {
+    const c = game.config, g = game.gen, sp = ctx.sp, d = ctx.d;
+    const cEnd = placeCrowd(game, ctx, ctx.x0 + sp * rf(game, 0.2, 0.35), smallCrowd(game, ctx) + 1, true);
+    const bx = Math.max(cEnd + sp * rf(game, 0.6, 0.9), g.jumpFree);
+    const prior = g.recent[0] + g.recent[1];
+    // fairness: cap by the difficulty *now* (never above what it will be when the horde arrives)
+    const maxNeed = Math.floor(4 + 3 * Math.min(d, game.time / 60 + game.loop));
+    let tall = !ctx.easy && d >= 0.25 && prior >= 6 && game.rng() < 0.4 + 0.1 * d;
+    if (tall) {
+      const lo = Math.min(maxNeed, Math.max(3, Math.floor(2 + 1.5 * d)));
+      const need = ri(game, lo, maxNeed);
+      spawn(game, 'barricade', { x: bx, w: 44, h: 170, need: need });
+      g.jumpFree = Math.max(g.jumpFree, bx + 44 + sp * 0.7);
+    } else {
+      const need = ctx.easy ? 3 : ri(game, 2, Math.floor(5 + 3 * d));
+      spawn(game, 'barricade', { x: bx, w: 40, h: 100, need: need });
+      markJump(game, ctx, bx, bx + 40);
+    }
+    void c;
+    return bx + 44 + sp * 0.45;
+  }
+
+  function tplSoldier(game, ctx) {
+    const sp = ctx.sp, d = ctx.d;
+    const cEnd = placeCrowd(game, ctx, ctx.x0 + sp * rf(game, 0.2, 0.35), smallCrowd(game, ctx), true);
+    let x = cEnd + sp * rf(game, 0.8, 1.1);
+    const n = Math.min(6, 1 + Math.floor(d / 0.7));
+    for (let k = 0; k < n; k++) { addHuman(game, 'soldier', x); x += 55; }
+    return x + sp * 0.4;
+  }
+
+  function tplRiot(game, ctx, noCrowd) {
+    const g = game.gen, sp = ctx.sp, d = ctx.d;
+    const start = Math.max(ctx.x0 + sp * 0.5, g.jumpFree);
+    const n = Math.min(4, 2 + (d > 1.2 ? 1 : 0) + (d > 2.5 ? 1 : 0));
+    for (let k = 0; k < n; k++) addHuman(game, 'riot', start + k * 30);
+    const end = start + (n - 1) * 30;
+    brainArc(game, ctx, (start + end) / 2 - sp * g.airHold / 2, true);
+    markJump(game, ctx, start - 15, end + 15);
+    let x = end + sp * 0.3;
+    if (!noCrowd && game.rng() < crowdChance(ctx)) x = placeCrowd(game, ctx, end + sp * rf(game, 0.5, 0.7), smallCrowd(game, ctx), true);
+    return x + sp * 0.3;
+  }
+
+  function tplScientist(game, ctx) {
+    const sp = ctx.sp;
+    const cEnd = placeCrowd(game, ctx, ctx.x0 + sp * rf(game, 0.2, 0.35), smallCrowd(game, ctx), true);
+    const sx = cEnd + sp * rf(game, 0.8, 1.0);
+    addHuman(game, 'scientist', sx);
+    let x = sx + 40;
+    if (game.rng() < 0.6) x = placeCrowd(game, ctx, sx + sp * 0.4, ri(game, 2, 4), false);
+    return x + sp * 0.4;
+  }
+
+  function tplMixed(game, ctx) {
+    const a = game.rng();
+    let x;
+    if (a < 0.4) x = tplHole(game, ctx, true);
+    else if (a < 0.7) x = tplRiot(game, ctx, true);
+    else x = tplCar(game, ctx, true);
+    const ctx2 = { x0: x, sp: ctx.sp, d: ctx.d, biome: ctx.biome, loop: ctx.loop };
+    return game.rng() < 0.5 ? tplCar(game, ctx2, false) : tplHole(game, ctx2, false);
+  }
+
+  const TEMPLATES = {
+    crowd: tplCrowd, car: tplCar, hole: tplHole, barricade: tplBarricade, soldier: tplSoldier,
+    riot: tplRiot, scientist: tplScientist, mixed: tplMixed
+  };
+
+  // ---------------------------------------------------------------- export
+  const ZSim = {
+    CONFIG: CONFIG,
+    BIOMES: BIOMES,
+    UPGRADES: UPGRADES,
+    MISSION_POOL: MISSION_POOL,
+    JOB_MUTATION: JOB_MUTATION,
+    defaultSave: defaultSave,
+    normalizeSave: normalizeSave,
+    buyUpgrade: buyUpgrade,
+    createGame: createGame,
+    step: step,
+    finishRun: finishRun,
+    rng: rng,
+    spawn: spawn,
+    airTimes: airTimes
+  };
+  root.ZSim = ZSim;
+  if (typeof module !== 'undefined' && module.exports) module.exports = ZSim;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// --- render.js ---
+/* ZRender: draws a ZSim game state on a 1280x720 logical canvas.
+   Never mutates game logic state. Particles, popups, shake and banners live here. */
+(function (root) {
+  'use strict';
+
+  const W = 1280, H = 720, GROUND = 560, LANE_GAP = 18, STEP = 1 / 60, TAU = Math.PI * 2;
+  const INK = '#17121F', BONE = '#F4EFD8', ACID = '#C6F135', CORAL = '#FF5A3C', TEAL = '#5CC8C2';
+  const LILAC = '#B9A3F0', GOLD = '#FFC15C', PINK = '#FF8FB8', SKIN = '#A5C46A';
+  const MUT = {
+    runner: { name: 'RUNNER', sub: 'Faster, and people get pulled in', color: '#FF8A4C', tint: 'rgba(255,138,76,0.10)' },
+    brute: { name: 'BRUTE', sub: 'Smash everything in the way', color: CORAL, tint: 'rgba(120,20,30,0.16)' },
+    spitter: { name: 'SPITTER', sub: 'Acid melts soldiers and shields', color: ACID, tint: 'rgba(198,241,53,0.10)' },
+    crawler: { name: 'CRAWLER', sub: 'Underground: bullets and holes miss you', color: GOLD, tint: 'rgba(90,58,42,0.18)' }
+  };
+  const JOB_MUT = { jogger: 'runner', bouncer: 'brute', chef: 'spitter', plumber: 'crawler' };
+
+  /* ---------- tiny helpers ---------- */
+  let g = null; // context the sprite helpers draw on (main canvas or a bake canvas)
+  const FD = {}, FB = {};
+  function fd(n) { return FD[n] || (FD[n] = n + 'px "Bowlby One", Impact, "Arial Black", sans-serif'); }
+  function fb(n) { return FB[n] || (FB[n] = '700 ' + n + 'px "Space Grotesk", "Trebuchet MS", Arial, sans-serif'); }
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  function hash(i) {
+    let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b);
+    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  const pathCache = new Map();
+  function P(d) {
+    let p = pathCache.get(d);
+    if (p === undefined) { p = typeof Path2D !== 'undefined' ? new Path2D(d) : null; pathCache.set(d, p); }
+    return p;
+  }
+  function F(d, fill) { const p = P(d); if (!p) return; g.fillStyle = fill; g.fill(p); g.lineWidth = 6; g.strokeStyle = INK; g.stroke(p); }
+  function N(d, fill) { const p = P(d); if (!p) return; g.fillStyle = fill; g.fill(p); }
+  function S(d) { const p = P(d); if (!p) return; g.lineWidth = 4; g.strokeStyle = INK; g.stroke(p); }
+  function O(x, y, r, fill, line) {
+    g.beginPath(); g.arc(x, y, r, 0, TAU); g.fillStyle = fill; g.fill();
+    if (line) { g.lineWidth = 6; g.strokeStyle = INK; g.stroke(); }
+  }
+  function E(x, y, rx, ry, fill) {
+    g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fillStyle = fill; g.fill();
+    g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+  }
+  function L2(x1, y1, x2, y2, c, w) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2);
+    g.strokeStyle = INK; g.lineWidth = w + 11; g.stroke();
+    g.strokeStyle = c; g.lineWidth = w; g.stroke();
+  }
+  function L3(x1, y1, x2, y2, x3, y3, c, w) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x3, y3);
+    g.strokeStyle = INK; g.lineWidth = w + 11; g.stroke();
+    g.strokeStyle = c; g.lineWidth = w; g.stroke();
+  }
+  function T(x, y) { g.save(); g.translate(x, y); }
+  function box(x, y, w, h, fill) { g.fillStyle = fill; g.fillRect(x, y, w, h); g.lineWidth = 6; g.strokeStyle = INK; g.strokeRect(x, y, w, h); }
+  function outlined(text, x, y, fill, lw) {
+    g.lineJoin = 'round'; g.lineWidth = lw; g.strokeStyle = INK; g.strokeText(text, x, y);
+    g.fillStyle = fill; g.fillText(text, x, y);
+  }
+
+  /* ---------- sprites (concept-art units: ~300 wide, feet at y 420) ---------- */
+  function heroSprite(t, moving, atk, skin, gown, leader) {
+    const s = Math.sin(t), c = Math.cos(t), sw = moving ? 26 : 0;
+    const up1 = moving ? Math.max(0, c) * 16 : 0, up2 = moving ? Math.max(0, -c) * 16 : 0;
+    L2(128, 335, 122 + s * sw, 406 - up1, skin, 22);
+    L2(178, 335, 186 - s * sw, 406 - up2, skin, 22);
+    T(s * sw, -up1); F('M102 422 Q104 398 124 398 Q142 400 142 422 Z', skin); g.restore();
+    T(-s * sw, -up2); F('M168 422 Q170 398 188 398 Q212 402 212 422 Z', skin); g.restore();
+    L3(98, 222, 68 - s * 8, 262, 64 - s * 14, 322, skin, 22);
+    T(-s * 14, 0); F('M46 318 Q64 304 84 318 L80 346 L72 336 L66 352 L58 336 L50 346 Z', skin); g.restore();
+    F('M100 196 Q150 176 200 196 L226 336 L204 350 L186 334 L166 356 L146 336 L122 354 L100 336 L78 348 Z', gown);
+    N('M168 188 Q190 190 197 196 L223 336 L204 346 L186 331 L178 340 Q196 260 168 188 Z', 'rgba(23,18,31,.22)');
+    if (leader) { g.fillStyle = INK; g.font = fd(60); g.textAlign = 'center'; g.fillText('0', 150, 298); }
+    const r = atk ? 34 : s * 6;
+    L3(198, 222, 250 + r * 0.5, 226, 288 + r, 206, skin, 22);
+    if (leader) { T(r * 0.6, 0); F('M246 204 L266 200 L272 232 L252 236 Z', CORAL); g.restore(); }
+    T(r, 0); F('M276 190 L312 178 L304 194 L326 194 L306 208 L320 222 L282 222 Z', skin); g.restore();
+    const bob = moving ? Math.abs(s) * -6 : 0;
+    T(0, bob);
+    F('M72 112 Q66 30 150 26 Q238 28 234 116 Q232 176 192 186 L112 186 Q76 176 72 112 Z', skin);
+    N('M196 38 Q236 60 231 116 Q229 174 192 183 L160 183 Q220 140 196 38 Z', 'rgba(23,18,31,.22)');
+    S('M130 28 Q120 8 104 10 M152 26 Q152 4 168 2 M174 30 Q188 14 204 20');
+    S('M84 78 L126 60 M92 66 L98 82 M104 60 L110 76 M116 54 L122 70');
+    if (atk) {
+      F('M92 86 L150 112 L92 124 Z', CORAL); F('M214 86 L160 112 L214 124 Z', CORAL);
+      F('M92 140 H216 V206 H92 Z', '#3A1226');
+      N('M92 140 L108 166 L124 140 L140 166 L156 140 L172 166 L188 140 L204 166 L216 140 Z', BONE);
+      N('M92 206 L108 182 L124 206 L140 182 L156 206 L172 182 L188 206 L204 182 L216 206 Z', BONE);
+    } else {
+      O(122, 108, 32, BONE, true); O(130, 112, 9, INK);
+      O(192, 112, 18, BONE, true); O(190, 116, 5, INK);
+      F('M104 156 Q150 146 206 154 Q204 206 156 214 Q112 210 104 156 Z', '#3A1226');
+      N('M128 198 Q150 180 176 198 Q152 212 128 198 Z', CORAL);
+      N('M118 154 L128 172 L138 152 Z M160 151 L170 167 L180 152 Z', BONE);
+    }
+    g.restore();
+  }
+  function runnerSprite(t, atk) {
+    const s = Math.sin(t) * 30, skin = '#B7B98A';
+    L3(130, 270, 70 - s, 320, 40 - s, 296 - s * 0.4, skin, 13);
+    L3(140, 170, 80, 214 + s * 0.4, 60, 180 + s * 0.4, skin, 13);
+    L3(146, 276, 194 + s * 0.6, 330, 172 + s, 396, skin, 13);
+    T(s, 0); F('M150 392 L196 392 L208 414 L150 414 Z', CORAL); g.restore();
+    F('M120 150 L198 130 L172 280 L116 280 Z', CORAL);
+    F('M114 262 L172 262 L178 300 L146 304 L138 286 L122 304 L100 296 Z', '#2F6FB0');
+    L3(184, 160, 244, 206 - s * 0.3, 288 + (atk ? 24 : 0), 182 - s * 0.3, skin, 13);
+    E(226, 100, 50, 54, skin);
+    F('M178 84 L274 74 L276 96 L178 106 Z', BONE);
+    O(244, 120, 12, BONE, true); O(248, 122, 4, INK);
+    F('M210 136 L270 132 L262 162 L222 164 Z', '#3A1226');
+  }
+  function bruteSprite(t, atk) {
+    const s = Math.sin(t) * 12, skin = '#9FB26C', k = atk ? -60 : 0;
+    T(s, 0); F('M96 320 L150 320 L146 400 L88 400 Z', '#2B2540'); F('M78 400 H150 V420 H72 Z', INK); g.restore();
+    T(-s, 0); F('M160 320 L214 320 L222 400 L164 400 Z', '#2B2540'); F('M160 400 H232 L238 420 H160 Z', INK); g.restore();
+    F('M40 160 Q150 96 260 160 L232 334 L80 334 Z', '#2B2540');
+    g.fillStyle = BONE; g.font = fd(24); g.textAlign = 'center'; g.fillText('SECURITY', 150, 248);
+    L3(60, 180, 12, 244, 32, 322 + k + s, skin, 60); L3(240, 180, 288, 244, 268 + (k ? 30 : 0), 322 + k - s, skin, 60);
+    O(32, 344 + k + s, 40, skin, true); O(268 + (k ? 30 : 0), 344 + k - s, 40, skin, true);
+    F('M116 72 Q150 46 184 72 L190 136 L110 136 Z', skin);
+    O(134, 92, 6, INK); O(166, 92, 6, INK);
+    S('M122 80 L142 86 M178 80 L158 86');
+    F('M126 134 L134 112 L144 134 Z', BONE); F('M156 134 L166 112 L174 134 Z', BONE);
+  }
+  function spitterSprite(t, atk) {
+    const s = Math.sin(t) * 18, skin = '#B5B079', p = atk ? 8 : 0;
+    L2(130, 320, 122 + s, 400, skin, 13); L2(170, 320, 180 - s, 400, skin, 13);
+    T(s, 0); F('M98 396 H136 V414 H94 Z', INK); g.restore();
+    T(-s, 0); F('M166 396 H206 L210 414 H166 Z', INK); g.restore();
+    F('M100 196 L200 196 L212 334 L90 334 Z', BONE);
+    O(136, 252, 6, INK); O(136, 292, 6, INK);
+    L3(104, 212, 72, 262, 86, 306, skin, 13);
+    O(172, 178, 64 + p, ACID, true); O(192, 160, 16, '#EEFFA6'); O(150, 200, 9, '#EEFFA6');
+    E(150, 90, 58, 48, skin);
+    F('M100 58 Q82 22 120 20 Q132 -10 170 8 Q214 6 202 58 Z', BONE);
+    O(126, 88, 15, BONE, true); O(130, 90, 5, INK);
+    F('M170 80 L216 66 L216 122 L166 110 Z', '#3A1226');
+  }
+  function crawlerSprite(t) {
+    const s = Math.sin(t) * 22, skin = '#A9B884';
+    L3(92, 290, 50, 340 - s * 0.4, 84 + s, 390, skin, 13);
+    L3(124, 292, 100, 350 + s * 0.4, 134 - s, 392, skin, 13);
+    F('M60 300 Q60 220 150 214 Q230 214 236 300 Z', '#2F6FB0');
+    S('M100 216 L104 300 M178 218 L176 300');
+    L3(196, 276, 216, 334 - s * 0.4, 196 - s, 396, skin, 13);
+    L3(226, 268, 280, 324 + s * 0.4, 256 + s, 398, skin, 13);
+    E(250, 236, 52, 46, skin);
+    F('M202 214 Q250 160 298 212 L322 220 L298 228 L206 228 Z', CORAL);
+    O(232, 238, 9, BONE, true); O(270, 238, 9, BONE, true);
+    F('M216 256 L288 254 L278 276 L226 278 Z', '#3A1226');
+  }
+  const JOBS = {
+    civ: { shirt: GOLD, legs: '#3E6FA8', label: '' },
+    jogger: { shirt: CORAL, legs: '#2F6FB0', label: 'JOGGER' },
+    bouncer: { shirt: '#2B2540', legs: '#2B2540', label: 'BOUNCER' },
+    chef: { shirt: BONE, legs: '#55606E', label: 'CHEF' },
+    plumber: { shirt: '#2F6FB0', legs: '#2F6FB0', label: 'PLUMBER' }
+  };
+  const SHIRTS = [GOLD, '#E07A9A', '#7FB0D8', '#C8925A'];
+  function civSprite(job, tone, hair, shirtAlt, t, moving, stunned) {
+    const j = JOBS[job] || JOBS.civ, s = moving ? Math.sin(t) * 28 : 0, skin = tone;
+    const shirt = job === 'civ' ? shirtAlt : j.shirt;
+    L3(136, 280, 120 - s, 340, 104 - s, 400, j.legs, 22);
+    L3(166, 280, 186 + s, 340, 200 + s, 400, j.legs, 22);
+    F('M110 150 L190 150 L186 292 L114 292 Z', shirt);
+    if (job === 'plumber') F('M124 150 H176 V200 H124 Z', '#2F6FB0');
+    const up = moving || stunned ? 0 : 60;
+    L3(116, 166, 60, 112 + up, 50, 54 + up * 1.9, skin, 22);
+    L3(186, 166, 240, 104 + up, 256, 48 + up * 2, skin, 22);
+    E(150, 98, 48, 52, skin);
+    F('M100 92 Q96 36 150 38 Q204 36 200 92 Q176 66 150 72 Q124 66 100 92 Z', hair);
+    if (job === 'jogger') F('M100 66 L200 66 L200 84 L100 84 Z', BONE);
+    if (job === 'chef') F('M100 58 Q82 22 120 20 Q132 -10 170 8 Q214 6 202 58 Z', BONE);
+    if (job === 'plumber') F('M100 62 Q150 10 200 62 L232 68 L200 76 L104 76 Z', CORAL);
+    if (job === 'bouncer') { g.fillStyle = BONE; g.font = fd(20); g.textAlign = 'center'; g.fillText('STAFF', 150, 226); }
+    O(130, 102, 13, BONE, true); O(130, 102, 3, INK);
+    O(170, 102, 13, BONE, true); O(170, 102, 3, INK);
+    E(150, 130, 13, moving ? 16 : 10, '#3A1226');
+  }
+  function copSprite(t, moving, shield, stunned) {
+    const s = moving ? Math.sin(t) * 14 : 0;
+    T(s, 0); F('M100 320 H148 V400 H96 Z', '#2B3A55'); F('M90 398 H150 V418 H86 Z', INK); g.restore();
+    T(-s, 0); F('M156 320 H204 L208 400 H156 Z', '#2B3A55'); F('M154 398 H212 L216 418 H154 Z', INK); g.restore();
+    F('M92 170 L208 170 L214 326 L86 326 Z', '#2B3A55');
+    F('M254 112 L280 18 L294 22 L268 116 Z', INK);
+    L3(202, 190, 248, 170, 260, 104, '#2B3A55', 22);
+    O(150, 106, 56, '#1E2A40', true);
+    F('M100 94 H200 V136 Q150 152 100 136 Z', '#8FD0E0');
+    O(130, 114, 5, INK); O(170, 114, 5, INK);
+    if (shield) {
+      T(0, stunned ? 70 : 0);
+      g.globalAlpha *= 0.92; F('M16 170 H176 V404 Q96 430 16 404 Z', '#BFE3EE'); g.globalAlpha /= 0.92;
+      N('M36 190 H76 L36 280 Z', BONE);
+      g.fillStyle = INK; g.font = fd(40); g.textAlign = 'center'; g.fillText('RIOT', 96, 304);
+      g.restore();
+    }
+  }
+  function soldierSprite(flash, stunned) {
+    F('M100 310 H148 L146 400 H98 Z', '#5F6B3A'); F('M156 310 H204 L208 400 H158 Z', '#5F6B3A');
+    F('M90 396 H150 V418 H86 Z', INK); F('M154 396 H214 L218 418 H154 Z', INK);
+    F('M94 170 L206 170 L210 320 L90 320 Z', '#5F6B3A'); F('M106 178 H194 V290 H106 Z', '#3E4728');
+    if (stunned) {
+      L3(104, 192, 70, 130, 60, 70, '#5F6B3A', 22); L3(196, 192, 230, 130, 240, 70, '#5F6B3A', 22);
+    } else {
+      L3(104, 192, 124, 232, 172, 226, '#5F6B3A', 22);
+      F('M52 212 H262 V228 H192 L184 262 H160 L166 228 H52 Z', INK);
+      if (flash) F('M264 220 L294 204 L286 218 L302 224 L286 230 L292 246 Z', GOLD);
+    }
+    O(150, 110, 50, '#3E4728', true);
+    F('M92 96 Q92 36 150 36 Q208 36 208 96 L226 104 H74 Z', '#5F6B3A');
+    O(126, 122, 15, CORAL, true); O(174, 122, 15, CORAL, true); O(150, 152, 17, '#8A8F72', true);
+  }
+  function sciSprite(t, moving) {
+    const s = moving ? Math.sin(t) * 10 : 0;
+    g.beginPath();
+    if (g.roundRect) g.roundRect(34, 170, 66, 150, 28); else g.rect(34, 170, 66, 150);
+    g.fillStyle = TEAL; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+    T(s, 0); F('M122 392 H176 V416 H118 Z', INK); g.restore();
+    T(-s, 0); F('M182 392 H234 L238 416 H182 Z', INK); g.restore();
+    F('M100 160 Q150 140 200 160 L226 330 L226 396 H180 L168 330 L168 396 H122 L88 330 Z', '#F2C53C');
+    F('M112 214 H124 V202 H138 V214 H150 V228 H138 V240 H124 V228 H112 Z', TEAL);
+    F('M178 222 L270 200 L274 214 L182 236 Z', INK);
+    L3(196, 180, 214, 222, 196, 230, '#F2C53C', 22);
+    E(150, 100, 66, 68, '#F2C53C'); E(158, 100, 44, 38, '#BFE3EE');
+    g.beginPath(); g.ellipse(158, 108, 28, 26, 0, 0, TAU); g.fillStyle = '#8A5A3C'; g.fill();
+    O(146, 104, 4, INK); O(172, 104, 4, INK);
+  }
+  const BRAIN_D = 'M10 30 Q4 12 22 9 Q28 0 40 5 Q56 2 57 20 Q66 33 54 44 Q50 57 33 53 Q18 59 12 47 Q1 41 10 30 Z';
+  const BRAIN_FOLDS = 'M31 7 Q25 20 32 30 Q39 41 31 53 M18 19 Q25 26 18 35 M45 15 Q38 23 47 32 M21 44 Q27 40 25 33';
+  const HEAD_D = 'M72 112 Q66 30 150 26 Q238 28 234 116 Q232 176 192 186 L112 186 Q76 176 72 112 Z';
+  function zombieHead(x, y, s) {
+    T(x, y); g.scale(s, s); g.translate(-150, -110);
+    F(HEAD_D, SKIN);
+    O(122, 108, 32, BONE, true); O(130, 112, 9, INK);
+    O(192, 112, 18, BONE, true); O(190, 116, 5, INK);
+    F('M104 156 Q150 146 206 154 Q204 206 156 214 Q112 210 104 156 Z', '#3A1226');
+    N('M118 154 L128 172 L138 152 Z M160 151 L170 167 L180 152 Z', BONE);
+    g.restore();
+  }
+  function brainShape(x, y, s) {
+    T(x, y); g.scale(s, s); g.translate(-31, -30);
+    const p = P(BRAIN_D);
+    if (p) { g.fillStyle = PINK; g.fill(p); g.lineWidth = 5; g.strokeStyle = INK; g.stroke(p); }
+    const f = P(BRAIN_FOLDS); if (f) { g.lineWidth = 3; g.strokeStyle = '#B04A78'; g.stroke(f); }
+    g.restore();
+  }
+
+  /* ---------- baked zombie sets: each a sprite at a fixed scale, 8 run frames ---------- */
+  const FRAMES = 8;
+  const BOX_X = -60, BOX_Y = -60, BOX_W = 440, BOX_H = 510, ANCHOR_X = 150, ANCHOR_Y = 420;
+  const FOLLOW_SKINS = ['#A5C46A', '#B7B98A', '#A9B884'], FOLLOW_GOWNS = ['#9CC3C6', '#C7B9D8', '#B8C3A0'];
+  const SETS = [
+    { s: 0.3, draw: t => heroSprite(t, true, false, FOLLOW_SKINS[0], FOLLOW_GOWNS[0], false) },  // 0..2 followers
+    { s: 0.3, draw: t => heroSprite(t, true, false, FOLLOW_SKINS[1], FOLLOW_GOWNS[1], false) },
+    { s: 0.3, draw: t => heroSprite(t, true, false, FOLLOW_SKINS[2], FOLLOW_GOWNS[2], false) },
+    { s: 0.42, draw: t => heroSprite(t, true, false, SKIN, '#9CC3C6', true) },                   // 3 leader
+    { s: 0.42, draw: t => heroSprite(t, true, true, SKIN, '#9CC3C6', true) },                    // 4 leader biting
+    { s: 0.5, draw: t => heroSprite(t, true, false, SKIN, '#9CC3C6', true), tint: 'rgba(60,10,30,0.32)' }, // 5 leader brute
+    { s: 0.3, draw: t => runnerSprite(t, false) },                                                // 6 runner
+    { s: 0.4, draw: t => heroSprite(t, true, true, '#8FA85A', '#5A4A6E', false), tint: 'rgba(50,8,24,0.30)' }, // 7 brute: bigger, darker, jaws open
+    { s: 0.3, draw: t => spitterSprite(t, false) },                                               // 8 spitter
+    { s: 0.3, draw: t => crawlerSprite(t) },                                                      // 9 crawler
+    { s: 0.36, draw: t => bruteSprite(t, false), tint: 'rgba(40,8,30,0.22)' }                     // 10 brute bouncer (1 in 4)
+  ];
+  const SET_LEADER = 3, SET_LEADER_ATK = 4, SET_LEADER_BRUTE = 5, SET_RUNNER = 6, SET_BRUTE = 7, SET_SPIT = 8, SET_CRAWL = 9;
+
+  function makeCanvas(w, h) {
+    try {
+      if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+      if (typeof document !== 'undefined' && document.createElement) {
+        const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+      }
+    } catch (e) { /* baking is optional */ }
+    return null;
+  }
+
+  /* ---------- renderer ---------- */
+  function create(canvas) {
+    const ctx = canvas.getContext('2d');
+    let k = 1;              // backing pixels per logical pixel
+    let q = 1;              // bake quality
+    let canBake = true;
+    let bakes = [];         // bakes[set][frame] -> canvas | null
+    let glowImg = null, shadowImg = null;
+    let reduced = false, best = 0;
+    const self = {};
+
+    function resetBakes() {
+      bakes = SETS.map(() => new Array(FRAMES).fill(undefined));
+      glowImg = undefined; shadowImg = undefined;
+    }
+    resetBakes();
+
+    function bake(set, frame) {
+      const row = bakes[set];
+      let c = row[frame];
+      if (c !== undefined) return c;
+      c = null;
+      if (canBake) {
+        const def = SETS[set], sc = def.s * q;
+        const cw = Math.ceil(BOX_W * sc), ch = Math.ceil(BOX_H * sc);
+        const cv = makeCanvas(cw, ch);
+        const bctx = cv && cv.getContext ? cv.getContext('2d') : null;
+        if (bctx) {
+          const old = g; g = bctx;
+          try {
+            bctx.setTransform(sc, 0, 0, sc, -BOX_X * sc, -BOX_Y * sc);
+            def.draw((frame / FRAMES) * TAU);
+            if (def.tint) {
+              bctx.setTransform(1, 0, 0, 1, 0, 0);
+              bctx.globalCompositeOperation = 'source-atop';
+              bctx.fillStyle = def.tint; bctx.fillRect(0, 0, cw, ch);
+              bctx.globalCompositeOperation = 'source-over';
+            }
+            c = cv;
+          } catch (e) { c = null; canBake = false; }
+          g = old;
+        } else canBake = false;
+      }
+      row[frame] = c;
+      return c;
+    }
+    function bakeRadial(r, inner, outer) {
+      const c = canBake ? makeCanvas(r * 2, r * 2) : null;
+      const b = c && c.getContext ? c.getContext('2d') : null;
+      if (!b) return null;
+      const gr = b.createRadialGradient(r, r, 0, r, r, r);
+      gr.addColorStop(0, inner); gr.addColorStop(1, outer);
+      b.fillStyle = gr; b.fillRect(0, 0, r * 2, r * 2);
+      return c;
+    }
+
+    /* Draw a zombie set frame with feet at (x, feet). sx/sy stretch, rot radians, clipTop: only show above feet */
+    function drawSet(set, frame, x, feet, sx, sy, rot) {
+      const def = SETS[set], img = bake(set, frame);
+      if (img) {
+        const s = def.s;
+        const dw = BOX_W * s * sx, dh = BOX_H * s * sy;
+        const ax = (ANCHOR_X - BOX_X) * s * sx, ay = (ANCHOR_Y - BOX_Y) * s * sy;
+        if (rot) {
+          g.save(); g.translate(x, feet); g.rotate(rot);
+          g.drawImage(img, -ax, -ay, dw, dh); g.restore();
+        } else g.drawImage(img, x - ax, feet - ay, dw, dh);
+      } else {
+        g.save(); g.translate(x, feet); if (rot) g.rotate(rot);
+        g.scale(def.s * sx, def.s * sy); g.translate(-ANCHOR_X, -ANCHOR_Y);
+        def.draw((frame / FRAMES) * TAU);
+        g.restore();
+      }
+    }
+    function drawShadow(x, y, rx) {
+      if (shadowImg === undefined) shadowImg = bakeRadial(32, 'rgba(23,18,31,0.42)', 'rgba(23,18,31,0)');
+      if (shadowImg) g.drawImage(shadowImg, x - rx, y - rx * 0.28, rx * 2, rx * 0.56);
+      else { g.fillStyle = 'rgba(23,18,31,.3)'; g.beginPath(); g.ellipse(x, y, rx, rx * 0.25, 0, 0, TAU); g.fill(); }
+    }
+    function drawGlow(x, y, r, alpha) {
+      if (glowImg === undefined) glowImg = bakeRadial(48, 'rgba(198,241,53,0.75)', 'rgba(198,241,53,0)');
+      const a = g.globalAlpha; g.globalAlpha = a * alpha;
+      if (glowImg) g.drawImage(glowImg, x - r, y - r, r * 2, r * 2);
+      else { g.fillStyle = 'rgba(198,241,53,.25)'; g.beginPath(); g.arc(x, y, r * 0.7, 0, TAU); g.fill(); }
+      g.globalAlpha = a;
+    }
+
+    /* ---------- effect pools (no allocation per frame) ---------- */
+    const PN = 640;
+    const pX = new Float32Array(PN), pY = new Float32Array(PN), pVX = new Float32Array(PN), pVY = new Float32Array(PN);
+    const pL = new Float32Array(PN), pM = new Float32Array(PN), pS = new Float32Array(PN), pR = new Float32Array(PN);
+    const pVR = new Float32Array(PN), pG = new Float32Array(PN), pC = new Uint8Array(PN), pK = new Uint8Array(PN);
+    const PCOL = [ACID, '#7FBF3A', CORAL, GOLD, BONE, TEAL, LILAC, PINK, '#8A8F72', '#5A3A2A', '#B5805A', INK, '#9FB26C', '#C8C2A8', '#7A1E2E'];
+    const C_ACID = 0, C_GREEN = 1, C_CORAL = 2, C_GOLD = 3, C_BONE = 4, C_TEAL = 5, C_LILAC = 6, C_PINK = 7, C_STONE = 8, C_DIRT = 9, C_WOOD = 10, C_INK = 11, C_SKIN = 12, C_PALE = 13, C_BLOOD = 14;
+    let pCur = 0;
+    function emit(x, y, vx, vy, life, size, col, kind, grav) {
+      const i = pCur; pCur = (pCur + 1) % PN;
+      pX[i] = x; pY[i] = y; pVX[i] = vx; pVY[i] = vy; pL[i] = life; pM[i] = life; pS[i] = size;
+      pR[i] = Math.random() * TAU; pVR[i] = (Math.random() - 0.5) * 14; pG[i] = grav; pC[i] = col; pK[i] = kind;
+    }
+    // kind 0 square, 1 spinning debris, 2 dust puff (grows, no gravity)
+    function burst(x, y, n, col, spd, up, size, kind, grav) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * TAU, v = spd * (0.35 + Math.random() * 0.65);
+        emit(x, y, Math.cos(a) * v, Math.sin(a) * v * 0.7 - up * Math.random(), 0.35 + Math.random() * 0.45,
+          size * (0.6 + Math.random() * 0.8), col, kind, grav);
+      }
+    }
+    function dust(x, y, n) {
+      for (let i = 0; i < n; i++) emit(x + (Math.random() - 0.5) * 40, y - Math.random() * 6, (Math.random() - 0.6) * 120, -20 - Math.random() * 50, 0.35 + Math.random() * 0.3, 8 + Math.random() * 8, C_PALE, 2, 0);
+    }
+
+    const FN = 48, floats = [];
+    for (let i = 0; i < FN; i++) floats.push({ text: '', x: 0, y: 0, vy: 0, life: 0, max: 1, color: BONE, size: 22 });
+    let fCur = 0;
+    function floatText(text, x, y, color, size, life) {
+      const f = floats[fCur]; fCur = (fCur + 1) % FN;
+      f.text = text; f.x = x; f.y = y; f.vy = -70; f.life = life || 0.9; f.max = f.life; f.color = color; f.size = size || 24;
+    }
+    const RN = 10, rings = [];
+    for (let i = 0; i < RN; i++) rings.push({ x: 0, y: 0, r: 0, vr: 0, life: 0, max: 1, color: LILAC, w: 8 });
+    let rCur = 0;
+    function ring(x, y, r, vr, life, color, w) {
+      const o = rings[rCur]; rCur = (rCur + 1) % RN;
+      o.x = x; o.y = y; o.r = r; o.vr = vr; o.life = life; o.max = life; o.color = color; o.w = w;
+    }
+    const YN = 40, flyers = [];
+    for (let i = 0; i < YN; i++) flyers.push({ x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0, life: 0, set: 0, scale: 1, fall: false });
+    let yCur = 0;
+    function flyer(x, y, fall, set) {
+      const o = flyers[yCur]; yCur = (yCur + 1) % YN;
+      o.x = x; o.y = y; o.set = set; o.life = fall ? 0.7 : 1.3; o.fall = fall; o.scale = 1; o.rot = 0;
+      if (fall) { o.vx = 30; o.vy = 60; o.vr = (Math.random() - 0.5) * 4; }
+      else { o.vx = -160 - Math.random() * 220; o.vy = -520 - Math.random() * 260; o.vr = -(6 + Math.random() * 8); }
+    }
+    const toasts = [];
+    for (let i = 0; i < 4; i++) toasts.push({ text: '', reward: 0, life: 0 });
+    const bigBanner = { title: '', sub: '', color: BONE, life: 0, max: 1 };
+    const biomeBanner = { title: '', sub: '', color: BONE, life: 0, max: 1 };
+
+    // speed lines
+    const SLN = 30, slX = new Float32Array(SLN), slY = new Float32Array(SLN), slL = new Float32Array(SLN);
+    for (let i = 0; i < SLN; i++) { slX[i] = Math.random() * W; slY[i] = 60 + Math.random() * 600; slL[i] = 60 + Math.random() * 160; }
+
+    // stars for downtown
+    const STN = 70, stX = new Float32Array(STN), stY = new Float32Array(STN), stS = new Float32Array(STN);
+    for (let i = 0; i < STN; i++) { stX[i] = hash(i * 3 + 1) * W; stY[i] = hash(i * 3 + 2) * 380; stS[i] = 1 + hash(i * 3 + 3) * 2.5; }
+
+    // per-zombie / per-human visual memory
+    const zMem = new Map(), hMem = new Map();
+    let frameNo = 0;
+
+    // state
+    let trauma = 0, flash = 0, flashColor = BONE, hordePulse = 0, hordeHurt = 0, comboPulse = 0, lastMult = 1;
+    let lastHorde = -1, lastGame = null, lastTime = -1, lastCam = 0, camVel = 0, leaderX = 0, leaderChomp = 0;
+    let curBiome = 0, prevBiome = 0, biomeFade = 1, overT = 0, attractT = 0, time = 0, screamGlow = 0;
+    let shakeX = 0, shakeY = 0;
+
+    /* ---------- gradients (cached per biome) ---------- */
+    function lin(y0, y1, stops) {
+      const gr = ctx.createLinearGradient(0, y0, 0, y1);
+      for (let i = 0; i < stops.length; i += 2) gr.addColorStop(stops[i], stops[i + 1]);
+      return gr;
+    }
+    const BIOME = [
+      { sky: lin(0, 520, [0, '#4A1E44', 0.45, '#C2513F', 0.8, '#FF8A4C', 1, '#FFC15C']),
+        far: '#B8483E', mid: '#7E2F48', near: '#4A1A3A', walk: '#6A3A54', road: '#2A1238', road2: '#22102E', dash: '#F4EFD8', car: CORAL, lit: '#FFD36B' },
+      { sky: lin(0, 520, [0, '#0C0718', 0.6, '#1B1230', 1, '#3A2453']),
+        far: '#2E2050', mid: '#231840', near: '#160F2A', walk: '#4A3D63', road: '#211B30', road2: '#1A1526', dash: '#C6F135', car: TEAL, lit: GOLD },
+      { sky: lin(0, 520, [0, '#7FB5B5', 0.6, '#BFD8D8', 1, '#EEF0D6']),
+        far: '#9FBFC4', mid: '#6E8591', near: '#3E5560', walk: '#7E939C', road: '#2A3A44', road2: '#23313A', dash: '#E8E2CC', car: '#5F6B3A', lit: '#FFE9A8' }
+    ];
+    const vignette = (() => { const gr = ctx.createRadialGradient(W / 2, H / 2, 260, W / 2, H / 2, 820); gr.addColorStop(0, 'rgba(10,6,18,0)'); gr.addColorStop(1, 'rgba(10,6,18,0.55)'); return gr; })();
+    const moonGlow = (() => { const gr = ctx.createRadialGradient(980, 160, 90, 980, 160, 260); gr.addColorStop(0, 'rgba(198,241,53,0.35)'); gr.addColorStop(1, 'rgba(198,241,53,0)'); return gr; })();
+    const sunGlow = (() => { const gr = ctx.createRadialGradient(900, 360, 100, 900, 360, 360); gr.addColorStop(0, 'rgba(255,211,107,0.5)'); gr.addColorStop(1, 'rgba(255,211,107,0)'); return gr; })();
+
+    /* ---------- backgrounds ---------- */
+    function house(x, y, s, wall, lit, on) {
+      g.fillStyle = wall; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 70 * s, y - 60 * s); g.lineTo(x + 140 * s, y);
+      g.lineTo(x + 140 * s, y + 80 * s); g.lineTo(x, y + 80 * s); g.closePath(); g.fill();
+      g.fillRect(x + 98 * s, y - 50 * s, 16 * s, 34 * s);
+      g.fillStyle = on ? lit : 'rgba(23,18,31,.5)'; g.fillRect(x + 20 * s, y + 16 * s, 26 * s, 26 * s);
+      g.fillStyle = lit; g.fillRect(x + 92 * s, y + 16 * s, 26 * s, 26 * s);
+      g.fillStyle = 'rgba(23,18,31,.55)'; g.fillRect(x + 58 * s, y + 38 * s, 24 * s, 42 * s);
+    }
+    function bgSuburbs(cam, t) {
+      const c = BIOME[0];
+      g.fillStyle = c.sky; g.fillRect(0, 0, W, 530);
+      g.fillStyle = sunGlow; g.fillRect(500, 0, 780, 530);
+      O(900, 360, 140, '#FFD36B', false);
+      g.fillStyle = 'rgba(255,90,60,.35)'; g.fillRect(760, 330, 280, 8); g.fillRect(770, 360, 260, 10); g.fillRect(790, 394, 220, 12);
+      // far hills
+      let off = cam * 0.06;
+      g.fillStyle = c.far; g.beginPath(); g.moveTo(0, 530);
+      for (let x = 0; x <= W + 40; x += 40) { const u = x + off; g.lineTo(x, 430 - 36 * Math.sin(u * 0.004) - 22 * Math.sin(u * 0.011 + 1)); }
+      g.lineTo(W, 530); g.closePath(); g.fill();
+      // mid: houses and round trees
+      off = cam * 0.22; const tile = 320;
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 1; i++) {
+        const x = i * tile - off, r = hash(i);
+        house(x + 30 + r * 60, 410 - r * 20, 1 + r * 0.25, c.mid, c.lit, r > 0.35);
+        g.fillStyle = '#5E2440'; g.beginPath(); g.arc(x + 250, 440, 38 + r * 16, 0, TAU); g.arc(x + 280, 418, 30, 0, TAU); g.fill();
+        g.fillRect(x + 258, 440, 10, 70);
+      }
+      // near: fence + lamp posts
+      off = cam * 0.55;
+      g.fillStyle = c.near;
+      g.fillRect(0, 486, W, 6); g.fillRect(0, 466, W, 5);
+      const ft = 28;
+      for (let x = -(off % ft) - ft; x < W; x += ft) g.fillRect(x, 456, 12, 50);
+      const lt = 460;
+      for (let i = Math.floor(off / lt) - 1; i < off / lt + W / lt + 1; i++) {
+        const x = i * lt - off + 100;
+        g.fillStyle = c.near; g.fillRect(x, 330, 10, 180); g.fillRect(x - 4, 324, 46, 10);
+        g.fillStyle = '#FFD36B'; g.fillRect(x + 30, 334, 14, 8);
+        if (hash(i + 77) > 0.5) { g.fillStyle = c.near; g.fillRect(x + 160, 470, 30, 22); g.fillRect(x + 172, 490, 6, 20); g.fillStyle = CORAL; g.fillRect(x + 186, 462, 4, 14); }
+      }
+    }
+    function bgDowntown(cam, t) {
+      const c = BIOME[1];
+      g.fillStyle = c.sky; g.fillRect(0, 0, W, 530);
+      g.fillStyle = BONE;
+      for (let i = 0; i < STN; i++) {
+        const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 1.3 + i));
+        g.globalAlpha = tw; g.fillRect(stX[i], stY[i], stS[i], stS[i]);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = moonGlow; g.fillRect(700, 0, 560, 440);
+      O(980, 160, 105, ACID, false);
+      g.fillStyle = '#A8D42A'; g.beginPath();
+      g.moveTo(960, 120); g.arc(940, 120, 20, 0, TAU); g.moveTo(1048, 196); g.arc(1020, 196, 28, 0, TAU);
+      g.moveTo(1022, 110); g.arc(1010, 110, 12, 0, TAU); g.moveTo(960, 200); g.arc(950, 200, 10, 0, TAU); g.fill();
+      // far skyline
+      let off = cam * 0.06, tile = 90;
+      g.fillStyle = c.far;
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 1; i++) {
+        const x = i * tile - off, hh = 140 + hash(i) * 200;
+        g.fillRect(x, 520 - hh, tile - 8, hh);
+        if (hash(i + 5) > 0.7) g.fillRect(x + 30, 520 - hh - 40, 4, 40);
+      }
+      // mid buildings with windows
+      off = cam * 0.2; tile = 210;
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 1; i++) {
+        const x = i * tile - off, r = hash(i + 100), hh = 150 + r * 130, bw = 160 + r * 30, top = 515 - hh;
+        g.fillStyle = c.mid; g.fillRect(x, top, bw, hh);
+        for (let row = 0; row < 7; row++) {
+          const wy = top + 18 + row * 34; if (wy > 490) break;
+          for (let col = 0; col < 4; col++) {
+            const hv = hash(i * 31 + row * 7 + col);
+            if (hv < 0.45) continue;
+            g.fillStyle = hv > 0.9 ? CORAL : hv > 0.6 ? c.lit : '#6B5A2E';
+            g.fillRect(x + 16 + col * 36, wy, 18, 20);
+          }
+        }
+      }
+      // near: lamps with light cones and burning barrels
+      off = cam * 0.55; tile = 400;
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 1; i++) {
+        const x = i * tile - off + 60;
+        g.fillStyle = 'rgba(255,193,92,0.10)'; g.beginPath(); g.moveTo(x + 36, 300); g.lineTo(x - 30, 528); g.lineTo(x + 110, 528); g.closePath(); g.fill();
+        g.fillStyle = c.near; g.fillRect(x, 290, 10, 230); g.fillRect(x, 286, 46, 10);
+        g.fillStyle = GOLD; g.fillRect(x + 28, 296, 16, 8);
+        if (hash(i + 9) > 0.45) {
+          const bx = x + 220, fl = Math.sin(t * 17 + i) * 6;
+          g.fillStyle = c.near; g.fillRect(bx, 478, 40, 46);
+          g.fillStyle = CORAL; g.beginPath(); g.moveTo(bx + 2, 480); g.quadraticCurveTo(bx + 20 + fl, 430, bx + 38, 480); g.fill();
+          g.fillStyle = GOLD; g.beginPath(); g.moveTo(bx + 10, 480); g.quadraticCurveTo(bx + 20 - fl, 452, bx + 30, 480); g.fill();
+        }
+      }
+    }
+    function bgQuarantine(cam, t) {
+      const c = BIOME[2];
+      g.fillStyle = c.sky; g.fillRect(0, 0, W, 530);
+      O(300, 240, 70, '#F8F4DC', false);
+      // mountains
+      let off = cam * 0.02;
+      g.fillStyle = '#B3CFCF'; g.beginPath(); g.moveTo(0, 520);
+      for (let x = 0; x <= W + 60; x += 60) { const u = x + off; g.lineTo(x, 380 - 70 * Math.abs(Math.sin(u * 0.0035)) - 20 * Math.sin(u * 0.013)); }
+      g.lineTo(W, 520); g.closePath(); g.fill();
+      // lab dome (recurring)
+      off = cam * 0.05; const dt = 1700;
+      for (let i = Math.floor(off / dt) - 1; i < off / dt + W / dt + 1; i++) {
+        const x = i * dt - off + 900;
+        if (x < -300 || x > W + 300) continue;
+        g.fillStyle = '#4E9C98'; g.fillRect(x - 210, 440, 420, 80);
+        g.beginPath(); g.arc(x, 450, 180, Math.PI, 0); g.fillStyle = TEAL; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+        g.lineWidth = 4; g.beginPath();
+        g.moveTo(x, 270); g.lineTo(x, 450); g.moveTo(x - 90, 294); g.quadraticCurveTo(x - 60, 380, x - 70, 450);
+        g.moveTo(x + 90, 294); g.quadraticCurveTo(x + 60, 380, x + 70, 450); g.moveTo(x - 172, 400); g.quadraticCurveTo(x, 370, x + 172, 400); g.stroke();
+        g.fillStyle = INK; g.fillRect(x - 4, 200, 8, 72);
+        O(x, 196, 9, Math.sin(t * 5) > 0 ? CORAL : '#6A2A2A', false);
+        g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(x - 70, 330, 40, Math.PI * 1.1, Math.PI * 1.5); g.lineTo(x - 70, 330); g.fill();
+      }
+      // mid: wall with hazard stripes and towers
+      off = cam * 0.25;
+      g.fillStyle = c.mid; g.fillRect(0, 410, W, 110);
+      g.fillStyle = GOLD; g.fillRect(0, 410, W, 16);
+      g.fillStyle = INK;
+      const st = 40;
+      for (let x = -(off % st) - st; x < W + st; x += st) { g.beginPath(); g.moveTo(x, 426); g.lineTo(x + 16, 410); g.lineTo(x + 32, 410); g.lineTo(x + 16, 426); g.fill(); }
+      g.fillStyle = 'rgba(23,18,31,.25)';
+      for (let x = -(off % 120); x < W; x += 120) g.fillRect(x, 426, 4, 94);
+      const tt = 760;
+      for (let i = Math.floor(off / tt) - 1; i < off / tt + W / tt + 1; i++) {
+        const x = i * tt - off + 200;
+        g.fillStyle = c.near; g.fillRect(x, 300, 12, 120); g.fillRect(x + 60, 300, 12, 120); g.fillRect(x - 14, 270, 100, 40);
+        g.fillStyle = 'rgba(255,240,180,.18)'; g.beginPath(); g.moveTo(x + 36, 290);
+        const sw = Math.sin(t * 0.8 + i) * 160; g.lineTo(x + 36 + sw - 60, 0); g.lineTo(x + 36 + sw + 60, 0); g.closePath(); g.fill();
+      }
+      // near: chain-link fence and signs
+      off = cam * 0.55;
+      g.fillStyle = c.near;
+      for (let x = -(off % 130) - 130; x < W; x += 130) g.fillRect(x, 440, 8, 86);
+      g.fillRect(0, 446, W, 3); g.fillRect(0, 476, W, 3); g.fillRect(0, 506, W, 3);
+      const sgt = 980;
+      for (let i = Math.floor(off / sgt) - 1; i < off / sgt + W / sgt + 1; i++) {
+        const x = i * sgt - off + 420;
+        box(x, 452, 150, 40, GOLD);
+        g.fillStyle = INK; g.font = fd(18); g.textAlign = 'center'; g.fillText('QUARANTINE', x + 75, 480);
+      }
+    }
+    const BGS = [bgSuburbs, bgDowntown, bgQuarantine];
+    function road(b, cam) {
+      const c = BIOME[b];
+      g.fillStyle = c.walk; g.fillRect(0, 512, W, 22);
+      g.fillStyle = 'rgba(23,18,31,.35)';
+      for (let x = -(cam % 80); x < W; x += 80) g.fillRect(x, 512, 3, 22);
+      g.fillStyle = INK; g.fillRect(0, 532, W, 5);
+      g.fillStyle = c.road; g.fillRect(0, 537, W, H - 537);
+      g.fillStyle = c.road2; g.fillRect(0, 600, W, H - 600);
+      g.fillStyle = c.dash;
+      const dt = 150;
+      for (let x = -(cam % dt) - dt; x < W; x += dt) g.fillRect(x, 642, 74, 7);
+      g.fillStyle = 'rgba(23,18,31,.4)';
+      const ct = 530;
+      for (let x = -(cam % ct) - ct; x < W; x += ct) { g.fillRect(x + 40, 690, 60, 4); g.fillRect(x + 300, 612, 30, 3); }
+    }
+
+    /* ---------- world objects ---------- */
+    function drawCar(o, sx, b) {
+      const h = o.h || 80, w = o.w || 200, sy = (h + 24) / 98, ty = GROUND + 24 - 110 * sy;
+      g.save(); g.translate(sx, ty); g.scale(w / 240, o.broken ? sy * 0.7 : sy);
+      if (o.broken) g.translate(0, 110 * 0.43);
+      F('M0 110 V66 Q4 54 22 54 L54 12 H150 L186 54 H226 Q240 56 240 76 V110 Z', o.broken ? '#4A4050' : BIOME[b].car);
+      F('M68 22 H106 V54 H42 Z', o.broken ? '#2A2438' : '#BFE3EE');
+      F('M116 22 H146 L170 54 H116 Z', o.broken ? '#2A2438' : '#BFE3EE');
+      N('M10 80 H230 V88 H10 Z', 'rgba(23,18,31,.25)');
+      O(50, 112, 24, INK, true); O(190, 112, 24, INK, true);
+      O(50, 112, 9, '#8A8F72', false); O(190, 112, 9, '#8A8F72', false);
+      if (!o.broken) { O(232, 80, 7, GOLD, false); }
+      g.restore();
+      if (o.broken && !reduced) {
+        g.fillStyle = 'rgba(60,50,70,.35)';
+        const tt = time * 1.6;
+        for (let i = 0; i < 3; i++) { const p = (tt + i / 3) % 1; g.beginPath(); g.arc(sx + w * 0.5 + p * 20, GROUND - h * 0.4 - p * 120, 10 + p * 24, 0, TAU); g.fill(); }
+      }
+    }
+    function cone(x, y) {
+      g.fillStyle = CORAL; g.beginPath(); g.moveTo(x - 10, y); g.lineTo(x, y - 30); g.lineTo(x + 10, y); g.closePath(); g.fill();
+      g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+      g.fillStyle = BONE; g.fillRect(x - 6, y - 16, 12, 5);
+    }
+    function drawHole(o, sx) {
+      const w = o.w || 120, cx = sx + w / 2;
+      g.fillStyle = 'rgba(23,18,31,.5)'; g.beginPath(); g.ellipse(cx, GROUND + 4, w / 2 + 12, 40, 0, 0, TAU); g.fill();
+      g.fillStyle = '#07050B'; g.beginPath(); g.ellipse(cx, GROUND + 4, w / 2, 32, 0, 0, TAU); g.fill();
+      g.lineWidth = 6; g.strokeStyle = '#4A3F58'; g.stroke();
+      g.fillStyle = '#1E1628'; g.beginPath(); g.ellipse(cx, GROUND - 6, w / 2 - 6, 18, 0, Math.PI, TAU); g.fill();
+      cone(sx - 16, GROUND - 22); cone(sx + w + 16, GROUND - 22);
+    }
+    function drawBarricade(o, sx, hordeN) {
+      const w = o.w || 70, h = o.h || 110, bottom = GROUND + 30, top = GROUND - h;
+      if (o.broken) {
+        g.fillStyle = '#6E7058';
+        for (let i = 0; i < 6; i++) { const r = hash(o.id * 13 + i); g.fillRect(sx - 20 + r * (w + 40), bottom - 14 - r * 10, 18 + r * 14, 12 + r * 8); }
+        return;
+      }
+      const rows = Math.max(2, Math.round((bottom - top) / 34)), rh = (bottom - top) / rows;
+      g.lineWidth = 5; g.strokeStyle = INK;
+      for (let r = 0; r < rows; r++) {
+        const y = bottom - (r + 1) * rh, offx = r % 2 ? 18 : 0;
+        for (let x = -offx; x < w; x += 36) {
+          const x0 = Math.max(0, x), x1 = Math.min(w, x + 36);
+          if (x1 - x0 < 6) continue;
+          g.fillStyle = (r + Math.floor(x / 36)) % 2 ? '#8A8F72' : '#7E8368';
+          g.fillRect(sx + x0, y, x1 - x0, rh); g.strokeRect(sx + x0, y, x1 - x0, rh);
+        }
+      }
+      // hazard band
+      g.fillStyle = GOLD; g.fillRect(sx - 4, top - 2, w + 8, 12); g.fillStyle = INK;
+      for (let x = 0; x < w + 8; x += 18) g.fillRect(sx - 4 + x, top - 2, 8, 12);
+      // need sign
+      const need = o.need || 0, ok = hordeN >= need, col = ok ? ACID : CORAL;
+      const cx = sx + w / 2, sy = top - 62, pulse = ok ? 1 : 1 + 0.06 * Math.sin(time * 10);
+      g.save(); g.translate(cx, sy); g.scale(pulse, pulse);
+      box(-52, -32, 104, 64, col);
+      g.fillStyle = INK; g.textAlign = 'center';
+      g.font = fd(46); g.fillText(String(need), 8, 20);
+      zombieHead(-34, 0, 0.12);
+      g.restore();
+      g.fillStyle = INK; g.fillRect(cx - 4, sy + 32, 8, top - sy - 32);
+      g.textAlign = 'center'; g.font = fb(15);
+      if (ok) outlined('SMASH IT', cx, sy - 42, ACID, 5);
+      else if (h <= 110) outlined('JUMP!', cx, sy - 42, BONE, 5);
+      else outlined('NEED ' + need, cx, sy - 42, CORAL, 5);
+    }
+    function drawHuman(h, sx, feet, sp) {
+      const kind = h.kind, stunned = h.state === 'stunned', moving = h.state === 'flee';
+      const t = time * (moving ? 13 : 4) + h.id * 1.7;
+      let s = 0.3, face = 1;
+      if (kind === 'riot' || kind === 'soldier') s = 0.34; else if (kind === 'scientist') s = 0.33;
+      if (kind === 'soldier' || kind === 'scientist') face = -1;
+      else if (kind !== 'riot' && !moving) face = -1;
+      drawShadow(sx, GROUND + (feet - GROUND) + h.y, 46 * s / 0.3);
+      const mem = hMem.get(h.id);
+      g.save(); g.translate(sx, feet); g.scale(face * s, s); g.translate(-150, -420);
+      if (kind === 'riot') copSprite(t, moving, h.shield !== false, stunned);
+      else if (kind === 'soldier') soldierSprite(mem && mem.flash > 0, stunned);
+      else if (kind === 'scientist') sciSprite(t, moving || h.cd < 0.4);
+      else {
+        const tone = TONES[h.id % 4], hair = HAIR[(h.id * 7 + 1) % 4], shirt = SHIRTS[(h.id * 5 + 2) % 4];
+        civSprite(kind, tone, hair, shirt, t, moving, stunned);
+      }
+      g.restore();
+      if (kind === 'soldier' && mem && mem.flash > 0 && !stunned) {
+        const mx = sx - 150 * s, my = feet - 200 * s;
+        g.fillStyle = 'rgba(255,230,140,.85)'; g.beginPath(); g.arc(mx, my, 14 + Math.random() * 6, 0, TAU); g.fill();
+        g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(mx, my, 6, 0, TAU); g.fill();
+      }
+      if (stunned) {
+        g.fillStyle = GOLD;
+        for (let i = 0; i < 3; i++) { const a = time * 6 + i * 2.1; g.fillRect(sx + Math.cos(a) * 24 - 4, feet - 150 + Math.sin(a) * 6 - 4, 8, 8); }
+      }
+      const mut = JOB_MUT[kind];
+      if (mut || kind === 'scientist') {
+        const col = mut ? MUT[mut].color : PINK, label = mut ? JOBS[kind].label : 'SCIENTIST';
+        const by = feet - 160 + Math.sin(time * 4 + h.id) * 4;
+        g.globalAlpha = 0.35 + 0.15 * Math.sin(time * 6 + h.id);
+        g.fillStyle = col; g.beginPath(); g.arc(sx, by - 30, 30, 0, TAU); g.fill();
+        g.globalAlpha = 1;
+        O(sx, by - 30, 18, col, true);
+        jobIcon(kind, sx, by - 30);
+        g.font = fb(15); g.textAlign = 'center';
+        const tw = g.measureText(label).width + 14;
+        g.fillStyle = INK; g.fillRect(sx - tw / 2, by - 4, tw, 22);
+        g.fillStyle = col; g.fillText(label, sx, by + 12);
+      }
+    }
+    function jobIcon(kind, x, y) {
+      g.fillStyle = INK; g.strokeStyle = INK; g.lineWidth = 3;
+      if (kind === 'jogger') { g.beginPath(); g.moveTo(x + 3, y - 12); g.lineTo(x - 7, y + 2); g.lineTo(x, y + 2); g.lineTo(x - 3, y + 12); g.lineTo(x + 8, y - 3); g.lineTo(x + 1, y - 3); g.closePath(); g.fill(); }
+      else if (kind === 'bouncer') { g.fillRect(x - 9, y - 7, 18, 14); g.fillRect(x - 9, y - 11, 4, 6); g.fillRect(x - 3, y - 12, 4, 6); g.fillRect(x + 3, y - 11, 4, 6); }
+      else if (kind === 'chef') { g.beginPath(); g.arc(x - 5, y - 4, 6, 0, TAU); g.arc(x + 5, y - 4, 6, 0, TAU); g.arc(x, y - 8, 6, 0, TAU); g.fill(); g.fillRect(x - 7, y, 14, 9); }
+      else if (kind === 'plumber') { g.lineWidth = 5; g.beginPath(); g.moveTo(x - 9, y + 9); g.lineTo(x + 5, y - 5); g.stroke(); g.beginPath(); g.arc(x + 6, y - 6, 6, 0, TAU); g.lineWidth = 3; g.stroke(); }
+      else { g.fillStyle = INK; g.fillRect(x - 2, y - 10, 4, 20); g.fillRect(x - 10, y - 2, 20, 4); }
+    }
+    const TONES = ['#D9A374', '#8A5A3C', '#E8C29F', '#B5805A'];
+    const HAIR = ['#4A2C1C', '#17121F', '#9A6A2E', '#7A3A2A'];
+
+    function drawProjectile(p, sx) {
+      const sy = GROUND - (p.y || 0);
+      if (p.kind === 'bullet') {
+        const tail = clamp(-(p.vx || -600) * 0.03, 10, 40);
+        g.lineCap = 'round';
+        g.strokeStyle = GOLD; g.lineWidth = 6; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + tail, sy); g.stroke();
+        g.strokeStyle = '#FFFFFF'; g.lineWidth = 2; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + tail * 0.6, sy); g.stroke();
+      } else if (p.kind === 'acid') {
+        const r = p.r || 10;
+        g.fillStyle = 'rgba(198,241,53,.45)'; g.beginPath(); g.moveTo(sx - r, sy + 3); g.arc(sx - r * 1.6, sy + 3, r * 0.6, 0, TAU); g.moveTo(sx - r * 2.4, sy + 6); g.arc(sx - r * 2.8, sy + 6, r * 0.4, 0, TAU); g.fill();
+        O(sx, sy, r, ACID, true);
+        g.fillStyle = '#EEFFA6'; g.beginPath(); g.arc(sx + r * 0.3, sy - r * 0.3, r * 0.3, 0, TAU); g.fill();
+      } else {
+        const r = p.r || 40;
+        g.globalAlpha = 0.55;
+        g.fillStyle = TEAL;
+        g.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = time * 2 + i * 1.3 + p.id;
+          g.moveTo(sx + Math.cos(i * 1.26) * r * 0.5 + r * 0.45, sy + Math.sin(a) * 6);
+          g.arc(sx + Math.cos(i * 1.26) * r * 0.5, sy + Math.sin(i * 1.26) * r * 0.3 + Math.sin(a) * 6, r * 0.45, 0, TAU);
+        }
+        g.fill();
+        g.globalAlpha = 0.85; g.fillStyle = '#DFFBF8';
+        for (let i = 0; i < 4; i++) g.fillRect(sx + Math.cos(time * 3 + i * 2) * r * 0.6, sy + Math.sin(time * 4 + i) * r * 0.3, 5, 5);
+        g.globalAlpha = 1;
+      }
+    }
+
+    /* ---------- the horde ---------- */
+    function zSet(z, isLeader, mutType) {
+      if (isLeader) {
+        if (mutType === 'brute') return SET_LEADER_BRUTE;
+        return leaderChomp > 0 ? SET_LEADER_ATK : SET_LEADER;
+      }
+      if (mutType === 'runner') return SET_RUNNER;
+      if (mutType === 'brute') return z.id % 4 === 0 ? 10 : SET_BRUTE;
+      if (mutType === 'spitter') return SET_SPIT;
+      if (mutType === 'crawler') return SET_CRAWL;
+      return z.id % 3;
+    }
+    function drawZombie(z, isLeader, sx, gameTime, speed, mutType) {
+      let mem = zMem.get(z.id);
+      if (!mem) { mem = { state: z.state, squash: 0, seen: 0 }; zMem.set(z.id, mem); }
+      if (mem.state === 'air' && z.state !== 'air') mem.squash = 1;
+      mem.state = z.state; mem.seen = frameNo;
+      const laneOff = (clamp(Math.round(z.lane), 0, 2) - 1) * LANE_GAP;
+      const groundY = GROUND + laneOff, feet = groundY - (z.y || 0);
+      const set = zSet(z, isLeader, mutType);
+      const phase = gameTime * (9 + speed / 45) + z.id * 1.3;
+      let frame = ((Math.floor((phase / TAU) * FRAMES) % FRAMES) + FRAMES) % FRAMES;
+      let sx2 = 1, sy2 = 1;
+      if (z.state === 'air') {
+        frame = 2;
+        const v = clamp(Math.abs(z.vy || 0) / 900, 0, 1);
+        sx2 = 1 - 0.1 * v; sy2 = 1 + 0.14 * v;
+      } else if (mem.squash > 0) {
+        sx2 = 1 + 0.28 * mem.squash; sy2 = 1 - 0.24 * mem.squash;
+      }
+      const age = gameTime - (z.born || -9);
+      if (age >= 0 && age < 0.3) { const p = 1 - age / 0.3, pop = 1 + 0.7 * p * p; sx2 *= pop; sy2 *= pop; }
+
+      if (z.state === 'under') {
+        // mostly underground: mound + top of the head, dirt spray
+        g.fillStyle = '#4A2F22'; g.beginPath(); g.ellipse(sx, groundY + 2, 34, 11, 0, Math.PI, TAU); g.fill();
+        g.save(); g.beginPath(); g.rect(sx - 80, groundY - 140, 160, 140); g.clip();
+        drawSet(isLeader ? SET_LEADER : z.id % 3, frame, sx, groundY + (isLeader ? 140 : 100), 1, 1, 0);
+        g.restore();
+        g.fillStyle = '#6B4A34'; g.beginPath(); g.ellipse(sx, groundY + 1, 30, 7, 0, 0, TAU); g.fill();
+        if (!reduced && Math.random() < 0.25) emit(sx - 20, groundY - 4, -60 - Math.random() * 140, -120 - Math.random() * 160, 0.4, 5 + Math.random() * 4, C_DIRT, 0, 900);
+        return;
+      }
+      drawShadow(sx, groundY + 2, (isLeader ? 54 : 40) * (1 - clamp((z.y || 0) / 400, 0, 0.6)));
+      if (mutType === 'spitter') drawGlow(sx, feet - 60, isLeader ? 90 : 66, 0.8 + 0.2 * Math.sin(gameTime * 8 + z.id));
+      if (mutType === 'runner' && !reduced) {
+        const a = g.globalAlpha;
+        g.globalAlpha = a * 0.28; drawSet(set, frame, sx - 22, feet, sx2, sy2, 0);
+        g.globalAlpha = a * 0.12; drawSet(set, frame, sx - 46, feet, sx2, sy2, 0);
+        g.globalAlpha = a;
+      }
+      const hurt = (z.hurt || 0) > 0 && Math.floor(time * 24) % 2 === 0;
+      if (hurt) g.globalAlpha = 0.45;
+      drawSet(set, frame, sx, feet, sx2, sy2, 0);
+      if (hurt) g.globalAlpha = 1;
+      if (isLeader && mutType === 'brute' && !reduced) {
+        g.strokeStyle = 'rgba(255,90,60,.6)'; g.lineWidth = 4; g.beginPath(); g.arc(sx, feet - 110, 120 + Math.sin(time * 12) * 6, 0, TAU); g.stroke();
+      }
+    }
+
+    /* ---------- HUD ---------- */
+    function hud(game) {
+      const n = game.horde ? game.horde.length : 0;
+      // horde panel
+      const pulse = 1 + 0.25 * hordePulse;
+      box(24, 20, 262, 100, INK);
+      zombieHead(76, 70, 0.34);
+      g.save(); g.translate(204, 72); g.scale(pulse, pulse);
+      g.font = fd(64); g.textAlign = 'center';
+      outlined(String(n), 0, 22, hordeHurt > 0 ? CORAL : hordePulse > 0 ? ACID : BONE, 8);
+      g.restore();
+      g.font = fb(14); g.textAlign = 'left'; g.fillStyle = ACID; g.fillText('HORDE', 130, 40);
+      // scream meter
+      const sc = game.scream || { charge: 0, active: 0 }, charge = clamp(sc.charge || 0, 0, 1), ready = charge >= 1;
+      box(24, 130, 262, 34, INK);
+      if (ready && !reduced) { g.fillStyle = 'rgba(185,163,240,' + (0.35 + 0.35 * Math.sin(time * 9)).toFixed(2) + ')'; g.fillRect(18, 124, 274, 46); box(24, 130, 262, 34, INK); }
+      g.fillStyle = ready ? LILAC : '#6E5FA0'; g.fillRect(28, 134, 254 * charge, 26);
+      if ((sc.active || 0) > 0) { g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(28, 134, 254, 26); }
+      g.font = fb(15); g.textAlign = 'left'; g.fillStyle = ready ? INK : BONE;
+      g.fillText(ready ? 'SCREAM READY!  [K]' : 'SCREAM', 38, 153);
+      // mutation ring
+      const m = game.mutation;
+      if (m && m.type && MUT[m.type]) {
+        const info = MUT[m.type], f = clamp((m.t || 0) / (m.dur || 7), 0, 1), cx = 340, cy = 70;
+        O(cx, cy, 42, INK, false);
+        g.lineCap = 'butt';
+        g.strokeStyle = '#3A3050'; g.lineWidth = 10; g.beginPath(); g.arc(cx, cy, 34, 0, TAU); g.stroke();
+        g.strokeStyle = info.color; g.beginPath(); g.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.stroke();
+        g.font = fd(26); g.textAlign = 'center'; g.fillStyle = BONE; g.fillText(String(Math.ceil(m.t || 0)), cx, cy + 10);
+        g.font = fb(14); outlined(info.name, cx, cy + 62, info.color, 5);
+      }
+      // score & best
+      const score = Math.floor(game.score || 0);
+      g.textAlign = 'center'; g.font = fd(50);
+      outlined(String(score), W / 2, 66, BONE, 10);
+      g.font = fb(16);
+      const beat = best > 0 && score > best;
+      outlined(beat ? 'NEW BEST!' : 'BEST ' + best, W / 2, 94, beat ? ACID : '#D8CFEA', 5);
+      // combo
+      const mult = game.multiplier || 1;
+      if (mult > 1 || (game.combo || 0) >= 2) {
+        const cp = 1 + 0.35 * comboPulse + (reduced ? 0 : 0.04 * Math.sin(time * 14));
+        g.save(); g.translate(W / 2, 140); g.scale(cp, cp);
+        g.font = fd(40); outlined('x' + mult, 0, 14, mult >= 4 ? CORAL : mult >= 2 ? GOLD : BONE, 8);
+        g.restore();
+        g.font = fb(14); outlined('COMBO ' + (game.combo || 0), W / 2, 178, BONE, 4);
+        const ct = clamp((game.comboT || 0) / 1.5, 0, 1);
+        g.fillStyle = INK; g.fillRect(W / 2 - 50, 184, 100, 8); g.fillStyle = GOLD; g.fillRect(W / 2 - 48, 186, 96 * ct, 4);
+      }
+      // distance, brains, biome (right; leave room for the DOM pause button)
+      g.textAlign = 'right';
+      g.font = fd(34); outlined(Math.floor((game.dist || 0) / 10) + ' m', 1176, 56, BONE, 8);
+      brainShape(1060, 88, 0.42);
+      g.font = fd(26); outlined(String(game.brains || 0), 1176, 98, PINK, 6);
+      const bn = BIOME_NAMES[game.biome] || '';
+      g.font = fb(14); outlined(bn.toUpperCase() + ((game.loop || 0) > 0 ? '  LOOP ' + (game.loop + 1) : ''), 1176, 124, '#D8CFEA', 4);
+      // toasts
+      let ty = 150;
+      for (let i = 0; i < toasts.length; i++) {
+        const tt = toasts[i]; if (tt.life <= 0) continue;
+        const slide = clamp((3.2 - tt.life) * 6, 0, 1) * clamp(tt.life * 3, 0, 1);
+        const x = W - 24 - 380 * slide;
+        box(x, ty, 360, 62, INK);
+        g.fillStyle = ACID; g.fillRect(x, ty, 8, 62);
+        g.textAlign = 'left'; g.font = fb(13); g.fillStyle = ACID; g.fillText('MISSION COMPLETE  +' + tt.reward + ' BRAINS', x + 20, ty + 24);
+        g.font = fb(16); g.fillStyle = BONE; g.fillText(tt.text, x + 20, ty + 47, 330);
+        ty += 72;
+      }
+    }
+    const BIOME_NAMES = ['Suburbs', 'Downtown', 'Quarantine'];
+    function banners() {
+      if (biomeBanner.life > 0) {
+        const p = biomeBanner.life / biomeBanner.max, a = clamp(Math.min(p * 4, (1 - p) * 8), 0, 1);
+        g.globalAlpha = a; g.textAlign = 'center';
+        g.font = fd(70); outlined(biomeBanner.title, W / 2, 290, biomeBanner.color, 14);
+        g.font = fb(22); outlined(biomeBanner.sub, W / 2, 326, BONE, 7);
+        g.globalAlpha = 1;
+      }
+      if (bigBanner.life > 0) {
+        const p = bigBanner.life / bigBanner.max, a = clamp(p * 4, 0, 1), inS = reduced ? 1 : 1 + 0.6 * Math.pow(clamp((p - 0.8) / 0.2, 0, 1), 2);
+        g.globalAlpha = a; g.textAlign = 'center';
+        g.save(); g.translate(W / 2, 400); g.scale(inS, inS);
+        g.font = fd(92); outlined(bigBanner.title, 0, 0, bigBanner.color, 16);
+        g.restore();
+        g.font = fb(24); outlined(bigBanner.sub, W / 2, 440, BONE, 7);
+        g.globalAlpha = 1;
+      }
+    }
+
+    /* ---------- effects update + draw ---------- */
+    function updateFx(dt) {
+      for (let i = 0; i < PN; i++) {
+        if (pL[i] <= 0) continue;
+        pL[i] -= dt; pVY[i] += pG[i] * dt; pX[i] += pVX[i] * dt; pY[i] += pVY[i] * dt; pR[i] += pVR[i] * dt;
+        if (pK[i] === 2) { pS[i] += 30 * dt; pVX[i] *= 0.96; }
+      }
+      for (let i = 0; i < FN; i++) { const f = floats[i]; if (f.life > 0) { f.life -= dt; f.y += f.vy * dt; f.vy *= 0.96; } }
+      for (let i = 0; i < RN; i++) { const r = rings[i]; if (r.life > 0) { r.life -= dt; r.r += r.vr * dt; } }
+      for (let i = 0; i < YN; i++) {
+        const o = flyers[i]; if (o.life <= 0) continue;
+        o.life -= dt; o.vy += (o.fall ? 900 : 1500) * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.vr * dt;
+        if (o.fall) o.scale = Math.max(0.05, o.scale - dt * 1.4);
+      }
+      for (let i = 0; i < toasts.length; i++) if (toasts[i].life > 0) toasts[i].life -= dt;
+      if (bigBanner.life > 0) bigBanner.life -= dt;
+      if (biomeBanner.life > 0) biomeBanner.life -= dt;
+      trauma = Math.max(0, trauma - dt * 1.6);
+      flash = Math.max(0, flash - dt * 3);
+      hordePulse = Math.max(0, hordePulse - dt * 4);
+      hordeHurt = Math.max(0, hordeHurt - dt * 3);
+      comboPulse = Math.max(0, comboPulse - dt * 5);
+      leaderChomp = Math.max(0, leaderChomp - dt);
+      screamGlow = Math.max(0, screamGlow - dt);
+      zMem.forEach(m => { if (m.squash > 0) m.squash = Math.max(0, m.squash - dt * 6); });
+      hMem.forEach(m => { if (m.flash > 0) m.flash -= dt; });
+    }
+    function drawWorldFx(cam) {
+      for (let i = 0; i < YN; i++) {
+        const o = flyers[i]; if (o.life <= 0) continue;
+        const a = g.globalAlpha; g.globalAlpha = clamp(o.life * 2, 0, 1);
+        drawSet(o.set, 3, o.x - cam, o.y, o.scale, o.scale, o.rot);
+        g.globalAlpha = a;
+      }
+      for (let i = 0; i < PN; i++) {
+        if (pL[i] <= 0) continue;
+        const x = pX[i] - cam; if (x < -40 || x > W + 40) continue;
+        const a = clamp(pL[i] / pM[i] * 1.6, 0, 1), s = pS[i];
+        g.globalAlpha = pK[i] === 2 ? a * 0.5 : a;
+        g.fillStyle = PCOL[pC[i]];
+        if (pK[i] === 1) { g.save(); g.translate(x, pY[i]); g.rotate(pR[i]); g.fillRect(-s / 2, -s / 2, s, s * 0.7); g.restore(); }
+        else g.fillRect(x - s / 2, pY[i] - s / 2, s, s);
+      }
+      g.globalAlpha = 1;
+      for (let i = 0; i < RN; i++) {
+        const r = rings[i]; if (r.life <= 0) continue;
+        g.globalAlpha = clamp(r.life / r.max, 0, 1);
+        g.strokeStyle = r.color; g.lineWidth = r.w; g.beginPath(); g.arc(r.x - cam, r.y, Math.max(1, r.r), 0, TAU); g.stroke();
+      }
+      g.globalAlpha = 1;
+      g.textAlign = 'center';
+      for (let i = 0; i < FN; i++) {
+        const f = floats[i]; if (f.life <= 0) continue;
+        const p = f.life / f.max, grow = p > 0.85 ? 1 + (p - 0.85) * 3 : 1;
+        g.globalAlpha = clamp(p * 2.5, 0, 1);
+        g.font = fd(Math.round(f.size * grow));
+        outlined(f.text, f.x - cam, f.y, f.color, Math.max(4, f.size / 4));
+      }
+      g.globalAlpha = 1;
+    }
+    function speedLines(game, dt) {
+      const c = game.config || {}, s0 = c.startSpeed || 300, s1 = c.maxSpeed || 800;
+      const f = clamp(((game.speed || 0) - s0) / Math.max(1, s1 - s0), 0, 1) * 0.8 + (game.mutation && game.mutation.type === 'runner' ? 0.3 : 0);
+      const n = Math.floor(SLN * (0.25 + 0.75 * f));
+      if (reduced) return;
+      g.fillStyle = 'rgba(244,239,216,' + (0.06 + 0.16 * f).toFixed(3) + ')';
+      for (let i = 0; i < SLN; i++) {
+        slX[i] -= (game.speed || 300) * (1.6 + (i % 3) * 0.4) * dt;
+        if (slX[i] + slL[i] < 0) { slX[i] = W + Math.random() * 300; slY[i] = 40 + Math.random() * 640; slL[i] = 60 + Math.random() * 180; }
+        if (i < n) g.fillRect(slX[i], slY[i], slL[i] * (0.6 + f), 2 + (i % 2));
+      }
+    }
+
+    /* ---------- public ---------- */
+    self.resize = function () {
+      let cssW = W, dpr = 1;
+      try {
+        dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+        const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
+        if (r && r.width > 0) cssW = r.width;
+      } catch (e) { /* keep defaults */ }
+      const bw = Math.max(320, Math.min(2560, Math.round(cssW * Math.min(dpr, 2))));
+      const bh = Math.round(bw * H / W);
+      if (canvas.width !== bw) canvas.width = bw;
+      if (canvas.height !== bh) canvas.height = bh;
+      k = bw / W;
+      const nq = clamp(Math.round(k * 4) / 4, 0.5, 2);
+      if (nq !== q) { q = nq; resetBakes(); }
+    };
+    self.clearCache = function () { resetBakes(); };
+    self.setBest = function (n) { best = Math.max(0, Math.floor(n || 0)); };
+    self.setReducedMotion = function (b) { reduced = !!b; };
+    self.reset = function () {
+      for (let i = 0; i < PN; i++) pL[i] = 0;
+      for (let i = 0; i < FN; i++) floats[i].life = 0;
+      for (let i = 0; i < RN; i++) rings[i].life = 0;
+      for (let i = 0; i < YN; i++) flyers[i].life = 0;
+      for (let i = 0; i < toasts.length; i++) toasts[i].life = 0;
+      bigBanner.life = 0; biomeBanner.life = 0;
+      trauma = 0; flash = 0; overT = 0; lastHorde = -1; lastGame = null; zMem.clear(); hMem.clear();
+    };
+    self.onEvents = function (events) {
+      if (!events || !events.length) return;
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i]; if (!e) continue;
+        const x = e.x || 0, y = GROUND - (e.y || 0);
+        switch (e.type) {
+          case 'bite': {
+            const special = !!(e.job && JOB_MUT[e.job]);
+            burst(x, y - 50, special ? 26 : 16, C_ACID, 380, 220, 9, 0, 900);
+            burst(x, y - 50, 6, C_BLOOD, 260, 160, 7, 0, 1100);
+            floatText('+1', x, y - 120, ACID, 34);
+            const m = e.multiplier || 1;
+            floatText('+' + 10 * m, x + 30, y - 80, m > 1 ? GOLD : BONE, 20, 0.7);
+            if (special) ring(x, y - 60, 20, 500, 0.4, MUT[JOB_MUT[e.job]].color, 8);
+            if (e.kind === 'scientist') floatText('+3 BRAINS', x, y - 160, PINK, 24, 1.1);
+            if (m !== lastMult) { comboPulse = 1; lastMult = m; }
+            if ((e.combo || 0) % 5 === 0 && e.combo) comboPulse = 1;
+            if (Math.abs(x - leaderX) < 140) leaderChomp = 0.22;
+            break;
+          }
+          case 'join': ring(x, GROUND - 50, 10, 260, 0.3, ACID, 5); hordePulse = 1; break;
+          case 'lost': {
+            const cause = e.cause;
+            if (cause === 'cure') { burst(x, y - 50, 18, C_TEAL, 280, 160, 9, 2, 0); floatText('CURED', x, y - 120, TEAL, 22); }
+            else if (cause === 'hole') { flyer(x, GROUND + 6, true, (e.id || i) % 3); burst(x, GROUND, 8, C_DIRT, 200, 100, 6, 0, 900); }
+            else { flyer(x, y, false, (Math.random() * 3) | 0); burst(x, y - 40, 12, C_BLOOD, 320, 200, 8, 0, 1100); burst(x, y - 40, 6, C_GREEN, 260, 160, 7, 0, 1000); }
+            if (!reduced) trauma = Math.min(1, trauma + 0.28);
+            hordeHurt = 0.5;
+            if (lastMult > 1) lastMult = 1;
+            break;
+          }
+          case 'jump': dust(x, GROUND, 6); break;
+          case 'land': dust(x, GROUND, 8); break;
+          case 'smash': {
+            const col = e.kind === 'car' ? C_CORAL : e.kind === 'soldier' || e.kind === 'riot' ? C_TEAL : C_STONE;
+            burst(x, GROUND - 70, 34, col, 620, 420, 16, 1, 1300);
+            burst(x, GROUND - 70, 16, C_GOLD, 520, 320, 8, 0, 1000);
+            burst(x, GROUND - 10, 10, C_PALE, 200, 60, 20, 2, 0);
+            ring(x, GROUND - 70, 30, 700, 0.35, GOLD, 10);
+            floatText('SMASH! +50', x, GROUND - 200, GOLD, 40, 1.1);
+            if (!reduced) { trauma = Math.min(1, trauma + 0.6); flash = Math.max(flash, 0.35); flashColor = BONE; }
+            break;
+          }
+          case 'mutation': {
+            const info = MUT[e.type]; if (!info) break;
+            bigBanner.title = info.name + '!'; bigBanner.sub = info.sub; bigBanner.color = info.color; bigBanner.life = bigBanner.max = 1.8;
+            ring(leaderX, GROUND - 80, 40, 1200, 0.6, info.color, 14);
+            if (!reduced) { flash = Math.max(flash, 0.4); flashColor = info.color; trauma = Math.min(1, trauma + 0.25); }
+            break;
+          }
+          case 'mutationEnd': { const info = MUT[e.type]; if (info) floatText(info.name + ' OVER', leaderX, GROUND - 200, BONE, 22, 1); break; }
+          case 'scream': {
+            ring(x, GROUND - 70, 30, 1700, 0.7, LILAC, 16);
+            ring(x, GROUND - 70, 10, 1100, 0.6, BONE, 6);
+            screamGlow = 0.5;
+            if (!reduced) { flash = Math.max(flash, 0.45); flashColor = LILAC; trauma = Math.min(1, trauma + 0.45); }
+            break;
+          }
+          case 'brain': burst(x, y, 12, C_PINK, 260, 120, 7, 0, 500); floatText('+1', x, y - 40, PINK, 26, 0.7); break;
+          case 'biome': {
+            biomeBanner.title = String(e.name || BIOME_NAMES[e.biome] || '').toUpperCase();
+            biomeBanner.sub = ['Dusk in the quiet streets', 'Night falls under the green moon', 'Dawn at the quarantine zone'][e.biome] || '';
+            biomeBanner.color = [GOLD, ACID, TEAL][e.biome] || BONE; biomeBanner.life = biomeBanner.max = 2.4;
+            break;
+          }
+          case 'mission': {
+            let slot = toasts[0];
+            for (let j = 0; j < toasts.length; j++) if (toasts[j].life <= 0) { slot = toasts[j]; break; }
+            slot.text = String(e.text || 'Mission'); slot.reward = e.reward || 0; slot.life = 3.2;
+            break;
+          }
+          case 'speedUp': floatText('FASTER!', leaderX + 120, GROUND - 260, CORAL, 26, 1); break;
+          case 'gameOver': if (!reduced) { flash = Math.max(flash, 0.6); flashColor = CORAL; trauma = 1; } break;
+          default: break;
+        }
+      }
+    };
+
+    function drawAttract(dt) {
+      attractT += dt;
+      const cam = attractT * 280, gt = attractT;
+      BGS[1](cam, gt); road(1, cam);
+      for (let lane = 0; lane < 3; lane++) {
+        for (let i = 13; i >= 0; i--) {
+          if (i % 3 !== lane && i !== 0) continue;
+          if (i === 0 && lane !== 1) continue;
+          const x = 860 - i * 52 - (lane - 1) * 10;
+          const wave = ((gt * 0.6 - (860 - x) / 900) % 2.2 + 2.2) % 2.2;
+          const y = wave < 0.62 ? Math.sin(wave / 0.62 * Math.PI) * 120 : 0;
+          const ph = gt * 15 + i * 1.3, fr = ((Math.floor(ph / TAU * FRAMES) % FRAMES) + FRAMES) % FRAMES;
+          const gy = GROUND + (lane - 1) * LANE_GAP;
+          drawShadow(x, gy + 2, i === 0 ? 54 : 40);
+          drawSet(i === 0 ? SET_LEADER : i % 3, y > 0 ? 2 : fr, x, gy - y, 1, 1, 0);
+        }
+      }
+      speedLines({ speed: 520, config: { startSpeed: 300, maxSpeed: 800 } }, dt);
+      g.fillStyle = vignette; g.fillRect(0, 0, W, H);
+    }
+
+    self.draw = function (game, alpha, realDt) {
+      g = ctx;
+      frameNo++;
+      const dt = clamp(realDt || 0, 0, 0.1);
+      time += dt;
+      ctx.setTransform(k, 0, 0, k, 0, 0);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      updateFx(dt);
+      if (!game) { drawAttract(dt); return; }
+
+      // new game / tracking
+      if (game !== lastGame || (game.time || 0) < lastTime) {
+        lastGame = game; lastTime = -1; camVel = 0; overT = 0; curBiome = prevBiome = game.biome || 0; biomeFade = 1;
+        lastHorde = game.horde ? game.horde.length : 0; zMem.clear(); hMem.clear(); lastMult = game.multiplier || 1;
+        biomeBanner.title = String(BIOME_NAMES[curBiome] || '').toUpperCase(); biomeBanner.sub = 'Run. Bite. Grow the horde.';
+        biomeBanner.color = [GOLD, ACID, TEAL][curBiome] || BONE; biomeBanner.life = biomeBanner.max = 2.2;
+      }
+      const gt = game.time || 0;
+      if (gt !== lastTime) {
+        if (lastTime >= 0) { const steps = Math.max(1, Math.round((gt - lastTime) / STEP)); camVel = (game.cameraX - lastCam) / steps; }
+        lastTime = gt; lastCam = game.cameraX || 0;
+      }
+      const running = game.status === 'running';
+      const off = running ? camVel * clamp(alpha || 0, 0, 1) : 0;
+      const cam = (game.cameraX || 0) + off;
+      if (!running) overT += dt;
+      if ((game.biome || 0) !== curBiome) { prevBiome = curBiome; curBiome = game.biome || 0; biomeFade = 0; }
+      biomeFade = Math.min(1, biomeFade + dt / 1.6);
+      const hordeN = game.horde ? game.horde.length : 0;
+      if (lastHorde >= 0 && hordeN > lastHorde) hordePulse = 1;
+      lastHorde = hordeN;
+      const mutType = game.mutation && game.mutation.type ? game.mutation.type : null;
+      const speed = game.speed || 0;
+
+      // shake
+      if (trauma > 0 && !reduced) {
+        const s = trauma * trauma * 22;
+        shakeX = Math.sin(time * 71) * s; shakeY = Math.cos(time * 53) * s * 0.7;
+      } else { shakeX = 0; shakeY = 0; }
+
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+      // background (crossfade on biome change)
+      if (biomeFade < 1) {
+        BGS[prevBiome](cam, time);
+        ctx.globalAlpha = biomeFade; BGS[curBiome](cam, time); ctx.globalAlpha = 1;
+      } else BGS[curBiome](cam, time);
+      road(curBiome, cam);
+      speedLines(game, running ? dt : 0);
+
+      // obstacles
+      const obs = game.obstacles || [];
+      for (let i = 0; i < obs.length; i++) {
+        const o = obs[i], sx = o.x - cam;
+        if (sx > W + 80 || sx + (o.w || 100) < -80) continue;
+        if (o.kind === 'hole') drawHole(o, sx);
+      }
+      for (let i = 0; i < obs.length; i++) {
+        const o = obs[i], sx = o.x - cam;
+        if (sx > W + 80 || sx + (o.w || 100) < -80) continue;
+        if (o.kind === 'car') drawCar(o, sx, curBiome);
+        else if (o.kind === 'barricade') drawBarricade(o, sx, hordeN);
+      }
+      // pickups
+      const pk = game.pickups || [];
+      for (let i = 0; i < pk.length; i++) {
+        const p = pk[i]; if (p.taken) continue;
+        const sx = p.x - cam; if (sx < -40 || sx > W + 40) continue;
+        const sy = GROUND - (p.y || 0) - 30 + Math.sin(time * 4 + p.id) * 6;
+        drawGlowPink(sx, sy);
+        brainShape(sx, sy, 0.55);
+      }
+
+      // humans memory (muzzle flash detection)
+      const hs = game.humans || [];
+      for (let i = 0; i < hs.length; i++) {
+        const h = hs[i]; if (h.kind !== 'soldier') continue;
+        let m = hMem.get(h.id);
+        if (!m) { m = { cd: h.cd || 0, flash: 0 }; hMem.set(h.id, m); }
+        if ((h.cd || 0) > m.cd + 0.05) m.flash = 0.09;
+        m.cd = h.cd || 0;
+      }
+      // humans + horde, back lane to front lane
+      const horde = game.horde || [];
+      leaderX = horde.length ? horde[0].x + off : leaderX;
+      for (let lane = 0; lane < 3; lane++) {
+        for (let i = 0; i < hs.length; i++) {
+          const h = hs[i];
+          if (clamp(Math.round(h.lane || 0), 0, 2) !== lane) continue;
+          const sx = h.x - cam; if (sx < -120 || sx > W + 120) continue;
+          drawHuman(h, sx, GROUND + (lane - 1) * LANE_GAP - (h.y || 0));
+        }
+        for (let i = horde.length - 1; i >= 0; i--) {
+          const z = horde[i];
+          if (clamp(Math.round(z.lane || 0), 0, 2) !== lane) continue;
+          const sx = z.x + off - cam; if (sx < -120 || sx > W + 120) continue;
+          drawZombie(z, i === 0 || z.leader === true, sx, gt, speed, mutType);
+        }
+      }
+      // projectiles
+      const pr = game.projectiles || [];
+      for (let i = 0; i < pr.length; i++) {
+        const p = pr[i], sx = p.x - cam;
+        if (sx < -80 || sx > W + 80) continue;
+        drawProjectile(p, sx);
+      }
+      drawWorldFx(cam);
+      ctx.restore();
+
+      // screen-space overlays
+      if (mutType && MUT[mutType]) { ctx.fillStyle = MUT[mutType].tint; ctx.fillRect(0, 0, W, H); }
+      ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+      if (flash > 0 && !reduced) { ctx.globalAlpha = clamp(flash, 0, 0.6) * 0.6; ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+      if (!running) { ctx.globalAlpha = clamp(overT * 1.4, 0, 0.55); ctx.fillStyle = '#0A0612'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+      if (running || overT < 0.4) { hud(game); banners(); }
+
+      // prune per-zombie memory
+      if (zMem.size > 160) zMem.forEach((m, id) => { if (frameNo - m.seen > 30) zMem.delete(id); });
+      if (hMem.size > 60) { const alive = new Set(); for (let i = 0; i < hs.length; i++) alive.add(hs[i].id); hMem.forEach((m, id) => { if (!alive.has(id)) hMem.delete(id); }); }
+    };
+    let pinkGlow;
+    function drawGlowPink(x, y) {
+      if (pinkGlow === undefined) pinkGlow = bakeRadial(40, 'rgba(255,143,184,0.6)', 'rgba(255,143,184,0)');
+      if (pinkGlow) g.drawImage(pinkGlow, x - 34, y - 34, 68, 68);
+      else { g.fillStyle = 'rgba(255,143,184,.3)'; g.beginPath(); g.arc(x, y, 26, 0, TAU); g.fill(); }
+    }
+
+    self.resize();
+    return self;
+  }
+
+  const ZRender = { create, W, H, GROUND };
+  root.ZRender = ZRender;
+  if (typeof module !== 'undefined' && module.exports) module.exports = ZRender;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// --- audio.js ---
+/* ZAudio: WebAudio sound effects and a light procedural beat. Silent-safe: never throws,
+   does nothing until unlock() is called from a user gesture, and works (silently) in Node. */
+(function (root) {
+  'use strict';
+
+  function create() {
+    let ac = null, master = null, sfxBus = null, musicBus = null, noiseBuf = null;
+    let muted = false, failed = false;
+    let nextBeat = 0, beatStep = 0, playing = false, lastSpeed = 0;
+    let lastBiteAt = -1, biteCount = 0;
+
+    function now() { return ac ? ac.currentTime : 0; }
+
+    function unlock() {
+      if (failed) return;
+      try {
+        if (!ac) {
+          const AC = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
+          if (!AC) { failed = true; return; }
+          ac = new AC();
+          master = ac.createGain(); master.gain.value = muted ? 0 : 0.55;
+          const comp = ac.createDynamicsCompressor();
+          comp.threshold.value = -16; comp.ratio.value = 4;
+          master.connect(comp); comp.connect(ac.destination);
+          sfxBus = ac.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
+          musicBus = ac.createGain(); musicBus.gain.value = 0.32; musicBus.connect(master);
+          const len = Math.floor(ac.sampleRate * 0.6);
+          noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+          const d = noiseBuf.getChannelData(0);
+          for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        }
+        if (ac.state === 'suspended' && ac.resume) ac.resume();
+      } catch (e) { failed = true; ac = null; }
+    }
+
+    /* --- voices --- */
+    function tone(type, f0, f1, dur, vol, when, bus) {
+      if (!ac) return;
+      try {
+        const t = (when || now()), o = ac.createOscillator(), a = ac.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(Math.max(20, f0), t);
+        if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+        a.gain.setValueAtTime(0.0001, t);
+        a.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+        a.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(a); a.connect(bus || sfxBus);
+        o.start(t); o.stop(t + dur + 0.02);
+      } catch (e) { /* optional */ }
+    }
+    function noise(dur, vol, filterType, f0, f1, when, bus, q) {
+      if (!ac || !noiseBuf) return;
+      try {
+        const t = (when || now()), src = ac.createBufferSource(), fl = ac.createBiquadFilter(), a = ac.createGain();
+        src.buffer = noiseBuf;
+        fl.type = filterType; fl.frequency.setValueAtTime(f0, t);
+        if (f1 && f1 !== f0) fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        fl.Q.value = q || 1;
+        a.gain.setValueAtTime(0.0001, t);
+        a.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+        a.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(fl); fl.connect(a); a.connect(bus || sfxBus);
+        src.start(t, Math.random() * 0.3); src.stop(t + dur + 0.02);
+      } catch (e) { /* optional */ }
+    }
+
+    const SFX = {
+      bite(pitch) {
+        const p = pitch || 1;
+        noise(0.09, 0.5, 'bandpass', 1800 * p, 600 * p, 0, null, 2);
+        tone('square', 190 * p, 70, 0.1, 0.18);
+        noise(0.05, 0.3, 'highpass', 3000, 2000, now() + 0.04, null, 1);
+      },
+      join() { tone('triangle', 520, 880, 0.08, 0.06); },
+      jump() { noise(0.22, 0.22, 'bandpass', 500, 2400, 0, null, 3); tone('sine', 220, 440, 0.15, 0.06); },
+      land() { tone('sine', 120, 45, 0.14, 0.32); noise(0.06, 0.12, 'lowpass', 600, 200); },
+      lost() { noise(0.18, 0.45, 'lowpass', 1400, 200, 0, null, 1); tone('sawtooth', 300, 80, 0.2, 0.12); },
+      smash() {
+        tone('sine', 110, 30, 0.5, 0.6);
+        noise(0.45, 0.55, 'lowpass', 2500, 120, 0, null, 0.8);
+        noise(0.12, 0.25, 'highpass', 4000, 1500, now() + 0.02);
+      },
+      brain() { tone('triangle', 1320, 1320, 0.09, 0.14); tone('triangle', 1760, 1760, 0.16, 0.12, now() + 0.07); },
+      scream() {
+        tone('sawtooth', 700, 180, 0.7, 0.2); tone('sawtooth', 740, 200, 0.7, 0.14);
+        noise(0.6, 0.3, 'bandpass', 1200, 400, 0, null, 2);
+      },
+      mutation() {
+        const t = now();
+        [392, 494, 587, 784].forEach((f, i) => { tone('square', f, f, 0.16, 0.12, t + i * 0.08); tone('triangle', f * 2, f * 2, 0.12, 0.05, t + i * 0.08); });
+      },
+      mutationEnd() { tone('triangle', 600, 300, 0.25, 0.1); },
+      gameOver() {
+        const t = now();
+        [330, 262, 196, 131].forEach((f, i) => tone('sawtooth', f, f * 0.97, 0.3, 0.16, t + i * 0.16));
+        noise(0.8, 0.25, 'lowpass', 800, 80, t);
+      },
+      mission() { const t = now(); [660, 880, 1320].forEach((f, i) => tone('triangle', f, f, 0.14, 0.12, t + i * 0.07)); },
+      biome() { tone('sine', 196, 392, 0.6, 0.12); },
+      speedUp() { tone('square', 440, 660, 0.12, 0.05); },
+      ui() { tone('triangle', 660, 880, 0.06, 0.08); }
+    };
+
+    function onEvents(events, game) {
+      if (!ac || muted || !events || !events.length) return;
+      try {
+        let bites = 0, lost = 0;
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i]; if (!e) continue;
+          switch (e.type) {
+            case 'bite': bites++; break;
+            case 'lost': lost++; break;
+            case 'jump': SFX.jump(); break;
+            case 'land': SFX.land(); break;
+            case 'smash': SFX.smash(); break;
+            case 'brain': SFX.brain(); break;
+            case 'scream': SFX.scream(); break;
+            case 'mutation': SFX.mutation(); break;
+            case 'mutationEnd': SFX.mutationEnd(); break;
+            case 'gameOver': SFX.gameOver(); playing = false; break;
+            case 'mission': SFX.mission(); break;
+            case 'biome': SFX.biome(); break;
+            case 'speedUp': SFX.speedUp(); break;
+            default: break;
+          }
+        }
+        if (bites) {
+          const t = now();
+          biteCount = t - lastBiteAt < 1.5 ? Math.min(biteCount + 1, 12) : 0;
+          lastBiteAt = t;
+          SFX.bite(1 + biteCount * 0.04);
+        }
+        if (lost) SFX.lost();
+      } catch (e) { /* optional */ }
+    }
+
+    /* --- procedural beat: 16 steps, tempo follows game.speed --- */
+    const BASS = [55, 0, 0, 55, 0, 0, 65.4, 0, 49, 0, 0, 49, 0, 0, 73.4, 61.7];
+    function scheduleStep(step, t, intensity, mut) {
+      if (step % 4 === 0) { tone('sine', 150, 42, 0.18, 0.5, t, musicBus); }
+      if (step % 8 === 4) noise(0.12, 0.22, 'bandpass', 1800, 900, t, musicBus, 0.7);
+      if (step % 2 === 1) noise(0.03, 0.08 + 0.06 * intensity, 'highpass', 7000, 7000, t, musicBus);
+      const b = BASS[step];
+      if (b) tone('sawtooth', b * 2, b * 2, 0.16, 0.09, t, musicBus);
+      if (mut && step % 4 === 2) tone('square', 440 + (step % 8) * 40, 440, 0.07, 0.04, t, musicBus);
+    }
+    function update(game) {
+      if (!ac || failed) return;
+      try {
+        const run = !!(game && game.status === 'running') && !muted;
+        if (!run) { playing = false; return; }
+        const c = game.config || {}, s0 = c.startSpeed || 300, s1 = c.maxSpeed || 800;
+        const intensity = Math.max(0, Math.min(1, ((game.speed || s0) - s0) / Math.max(1, s1 - s0)));
+        const bpm = 104 + intensity * 56;
+        const stepDur = 60 / bpm / 4;
+        const t = now();
+        if (!playing || nextBeat < t - 0.2) { playing = true; nextBeat = t + 0.05; beatStep = 0; }
+        lastSpeed = game.speed || 0;
+        const mut = !!(game.mutation && game.mutation.type);
+        while (nextBeat < t + 0.12) {
+          scheduleStep(beatStep, nextBeat, intensity, mut);
+          nextBeat += stepDur; beatStep = (beatStep + 1) % 16;
+        }
+      } catch (e) { /* optional */ }
+    }
+
+    function setMuted(b) {
+      muted = !!b;
+      try { if (master && ac) master.gain.setTargetAtTime(muted ? 0 : 0.55, ac.currentTime, 0.02); } catch (e) { /* optional */ }
+      if (muted) playing = false;
+    }
+    function play(name) { try { if (ac && !muted && SFX[name]) SFX[name](); } catch (e) { /* optional */ } }
+
+    return {
+      unlock, onEvents, update, setMuted, play,
+      get muted() { return muted; },
+      get ready() { return !!ac; }
+    };
+  }
+
+  const ZAudio = { create };
+  root.ZAudio = ZAudio;
+  if (typeof module !== 'undefined' && module.exports) module.exports = ZAudio;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// --- main.js ---
+/* main: boot, input, fixed-step loop, screens, save/load. Defines no global. */
+(function () {
+  'use strict';
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+  const Z = window.ZSim, R = window.ZRender, A = window.ZAudio;
+  const SAVE_KEY = 'zombie-save-v2', MUTE_KEY = 'zombie-v2-muted', STEP = 1 / 60;
+  const HIT_STOP = 0.06, DYING_REAL = 1.0, DYING_RATE = 0.3; // 1 s of real time at 0.3x = 0.3 s of slow-mo
+  const $ = id => document.getElementById(id);
+
+  const canvas = $('game'), stage = $('stage'), fit = $('fit');
+  if (!canvas || !stage) return;
+  const live = $('live');
+
+  const silentAudio = { unlock() {}, onEvents() {}, update() {}, setMuted() {}, play() {}, muted: false };
+  let renderer = null, audio = silentAudio;
+  try { renderer = R.create(canvas); } catch (e) { console.error('renderer failed', e); }
+  try { if (A) audio = A.create(); } catch (e) { audio = silentAudio; }
+  if (!Z || !renderer) {
+    const tag = document.querySelector('#scrTitle .tag');
+    if (tag) tag.textContent = 'The game failed to load. Please reload the page.';
+    return;
+  }
+
+  /* ---------- storage ---------- */
+  function storeGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function storeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* storage is optional */ } }
+  function loadSave() {
+    let raw = null;
+    try { const s = storeGet(SAVE_KEY); raw = s ? JSON.parse(s) : null; } catch (e) { raw = null; }
+    try { return Z.normalizeSave(raw); } catch (e) { try { return Z.defaultSave(); } catch (e2) { return null; } }
+  }
+  function persist() { try { storeSet(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* optional */ } }
+
+  let save = loadSave();
+  let mode = 'title';            // title | shop | play | pause | dying | over
+  let shopReturn = 'title';
+  let game = null, runCounter = 0, lastEarned = null;
+  let acc = 0, last = 0, hitStop = 0, dyingT = 0, overShownAt = 0;
+  let jumpLatch = false, screamLatch = false, lastReady = null;
+  const heldKeys = new Set(), heldPointers = new Set();
+  const input = { jumpPressed: false, jumpHeld: false, scream: false };
+  let muted = storeGet(MUTE_KEY) === '1';
+  audio.setMuted(muted);
+
+  const reducedMQ = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  renderer.setReducedMotion(!!(reducedMQ && reducedMQ.matches));
+  if (reducedMQ && reducedMQ.addEventListener) reducedMQ.addEventListener('change', () => renderer.setReducedMotion(reducedMQ.matches));
+
+  /* ---------- layout: fit the 16:9 stage into the free space ---------- */
+  function fitStage() {
+    const r = fit.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      const w = Math.floor(Math.min(r.width, r.height * 16 / 9));
+      stage.style.width = w + 'px';
+      stage.style.height = Math.floor(w * 9 / 16) + 'px';
+    }
+    renderer.resize();
+  }
+  window.addEventListener('resize', fitStage);
+  window.addEventListener('orientationchange', fitStage);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitStage);
+  fitStage();
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderer.clearCache(); fitStage(); }); } catch (e) { /* optional */ }
+
+  /* ---------- screens ---------- */
+  const screens = { title: $('scrTitle'), shop: $('scrShop'), pause: $('scrPause'), over: $('scrOver') };
+  function setMode(m) {
+    mode = m;
+    stage.dataset.mode = m;
+    document.body.classList.toggle('playing', m === 'play');
+    for (const k in screens) if (screens[k]) screens[k].hidden = k !== m;
+    const focusId = { title: 'btnPlay', shop: 'btnShopBack', pause: 'btnResume', over: 'btnAgain' }[m];
+    if (focusId) {
+      const el = $(focusId);
+      if (m === 'shop') { const b = screens.shop.querySelector('.buy:not(:disabled)'); (b || el).focus({ preventScroll: true }); }
+      else if (el) el.focus({ preventScroll: true });
+    } else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+  function say(t) { if (live) live.textContent = t; }
+
+  function missionDef(id) {
+    const pool = Z.MISSION_POOL || [];
+    for (let i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
+    return null;
+  }
+  function refreshTitle() {
+    $('tBest').textContent = String(Math.floor((save && save.best) || 0));
+    $('tBrains').textContent = String(Math.floor((save && save.brains) || 0));
+    const ol = $('tMissions'); ol.textContent = '';
+    const ms = (save && save.missions) || [];
+    for (let i = 0; i < ms.length; i++) {
+      const def = missionDef(ms[i].id); if (!def) continue;
+      const li = document.createElement('li');
+      const goal = def.goal || 1, prog = Math.min(goal, Math.floor(ms[i].progress || 0));
+      li.textContent = def.text + '  (' + prog + '/' + goal + ')';
+      const bar = document.createElement('span'); bar.className = 'bar';
+      const fill = document.createElement('i'); fill.style.width = Math.round(prog / goal * 100) + '%';
+      bar.appendChild(fill); li.appendChild(bar); ol.appendChild(li);
+    }
+  }
+  function showTitle() { refreshTitle(); setMode('title'); }
+
+  /* shop */
+  const shopRows = {};
+  function buildShop() {
+    const ul = $('shopList'); ul.textContent = '';
+    const ups = Z.UPGRADES || [];
+    for (let i = 0; i < ups.length; i++) {
+      const u = ups[i];
+      const li = document.createElement('li');
+      const info = document.createElement('div');
+      const name = document.createElement('strong'); name.textContent = u.name;
+      const desc = document.createElement('span'); desc.className = 'desc'; desc.textContent = u.desc;
+      info.appendChild(name); info.appendChild(desc);
+      const pips = document.createElement('span'); pips.className = 'pips'; pips.setAttribute('aria-hidden', 'true');
+      for (let p = 0; p < u.max; p++) pips.appendChild(document.createElement('i'));
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'buy';
+      btn.addEventListener('click', () => buy(u.id));
+      li.appendChild(info); li.appendChild(pips); li.appendChild(btn);
+      ul.appendChild(li);
+      shopRows[u.id] = { u, pips, btn };
+    }
+  }
+  function refreshShop() {
+    $('shopBrains').textContent = String(Math.floor(save.brains || 0));
+    for (const id in shopRows) {
+      const row = shopRows[id], u = row.u, level = (save.upgrades && save.upgrades[id]) || 0, maxed = level >= u.max;
+      let cost = 0; try { cost = maxed ? 0 : u.cost(level); } catch (e) { cost = 0; }
+      const pips = row.pips.children;
+      for (let p = 0; p < pips.length; p++) pips[p].className = p < level ? 'on' : '';
+      row.btn.textContent = maxed ? 'Maxed' : 'Buy · ' + cost;
+      row.btn.disabled = maxed || (save.brains || 0) < cost;
+      row.btn.setAttribute('aria-label', u.name + ', level ' + level + ' of ' + u.max + (maxed ? ', maxed' : ', costs ' + cost + ' brains'));
+    }
+  }
+  function buy(id) {
+    let r = null;
+    try { r = Z.buyUpgrade(save, id); } catch (e) { r = null; }
+    if (r && r.ok) {
+      save = r.save; persist(); audio.play('brain'); refreshShop(); say('Bought ' + shopRows[id].u.name);
+      if (shopRows[id].btn.disabled) $('btnShopBack').focus({ preventScroll: true });
+    } else {
+      audio.play('ui'); say(r && r.reason === 'max' ? 'Already maxed' : 'Not enough brains');
+    }
+  }
+  function openShop(from) {
+    shopReturn = from;
+    if (!Object.keys(shopRows).length) buildShop();
+    refreshShop(); setMode('shop');
+  }
+  function closeShop() { if (shopReturn === 'over') showOverScreen(); else showTitle(); }
+
+  /* ---------- runs ---------- */
+  function startRun() {
+    runCounter++;
+    const seed = ((Math.floor(performance.now() * 1000) ^ Math.imul(runCounter, 2654435761)) >>> 0) || 1;
+    try { game = Z.createGame({ seed, save }); } catch (e) { console.error(e); return; }
+    renderer.reset(); renderer.setBest((save && save.best) || 0);
+    acc = 0; hitStop = 0; jumpLatch = false; screamLatch = false; heldKeys.clear(); heldPointers.clear();
+    audio.play('ui');
+    setMode('play');
+    say('Run started');
+  }
+  function pause() {
+    if (mode !== 'play') return;
+    releaseAll();
+    $('btnMute').textContent = muted ? 'Sound: off' : 'Sound: on';
+    setMode('pause'); say('Paused');
+  }
+  function resume() { if (mode === 'pause') { last = 0; acc = 0; setMode('play'); } }
+  function beginDying() {
+    mode = 'dying'; stage.dataset.mode = 'dying'; document.body.classList.remove('playing');
+    dyingT = 0; releaseAll();
+    try {
+      const r = Z.finishRun(save, game);
+      save = r.save; lastEarned = r.earned || null; persist();
+    } catch (e) { console.error(e); lastEarned = null; }
+  }
+  function showOverScreen() {
+    const score = Math.floor((game && game.score) || 0);
+    $('oScore').textContent = String(score);
+    $('oBest').textContent = String(Math.floor((save && save.best) || 0));
+    $('oNew').hidden = !(lastEarned && lastEarned.newBest);
+    $('oBrains').textContent = '+' + ((lastEarned && lastEarned.brains) || 0);
+    const done = (lastEarned && lastEarned.missionsDone) || [];
+    const ul = $('oDone'); ul.textContent = '';
+    for (let i = 0; i < done.length; i++) { const li = document.createElement('li'); li.textContent = '✓ ' + done[i]; ul.appendChild(li); }
+    $('oDoneWrap').hidden = done.length === 0;
+    setMode('over'); overShownAt = performance.now();
+    say('Game over. Score ' + score + (lastEarned && lastEarned.newBest ? ', new best!' : '') + '. Press Space or Enter to run again.');
+  }
+
+  function stepOnce() {
+    input.jumpPressed = jumpLatch;
+    input.jumpHeld = heldKeys.size > 0 || heldPointers.size > 0;
+    input.scream = screamLatch;
+    jumpLatch = false; screamLatch = false;
+    try { Z.step(game, input, STEP); } catch (e) { console.error(e); }
+    const ev = game.events;
+    if (ev && ev.length) {
+      try { renderer.onEvents(ev); } catch (e) { console.error(e); }
+      audio.onEvents(ev, game);
+      for (let i = 0; i < ev.length; i++) if (ev[i] && ev[i].type === 'smash') hitStop = HIT_STOP;
+    }
+    if (game.status === 'over') beginDying();
+  }
+
+  function frame(ts) {
+    window.requestAnimationFrame(frame);
+    let real = last ? (ts - last) / 1000 : 0;
+    last = ts;
+    if (!(real > 0)) real = 0;
+    if (real > 0.25) real = 0.25;
+    let renderDt = real;
+    if (mode === 'play' && game) {
+      if (hitStop > 0) hitStop -= real;
+      else {
+        acc += real;
+        let steps = 0;
+        while (acc >= STEP && steps < 8) {
+          stepOnce(); acc -= STEP; steps++;
+          if (mode !== 'play' || hitStop > 0) break;
+        }
+        if (steps >= 8) acc = 0;
+      }
+    } else if (mode === 'dying') {
+      dyingT += real; renderDt = real * DYING_RATE;
+      if (dyingT >= DYING_REAL) showOverScreen();
+    }
+    audio.update(mode === 'play' ? game : null);
+    const attract = !game || mode === 'title' || (mode === 'shop' && shopReturn === 'title');
+    const alpha = mode === 'play' && hitStop <= 0 ? Math.min(1, acc / STEP) : 0;
+    try { renderer.draw(attract ? null : game, alpha, renderDt); } catch (e) { console.error(e); }
+    if (mode === 'play' && game) {
+      const ready = !!(game.scream && game.scream.charge >= 1);
+      if (ready !== lastReady) {
+        lastReady = ready;
+        $('screamBtn').classList.toggle('ready', ready);
+        $('padScream').classList.toggle('ready', ready);
+      }
+    }
+  }
+
+  /* ---------- input ---------- */
+  function releaseAll() { heldKeys.clear(); heldPointers.clear(); jumpLatch = false; screamLatch = false; }
+  function toggleMute() {
+    muted = !muted; audio.setMuted(muted); storeSet(MUTE_KEY, muted ? '1' : '0');
+    $('btnMute').textContent = muted ? 'Sound: off' : 'Sound: on';
+    say(muted ? 'Sound off' : 'Sound on');
+  }
+  function keyName(e) { const k = e.key || ''; return k.length === 1 ? k.toLowerCase() : k; }
+  const JUMP_KEYS = { ' ': 1, w: 1, ArrowUp: 1, j: 1, Spacebar: 1 };
+  const SCREAM_KEYS = { k: 1, s: 1, Shift: 1 };
+
+  window.addEventListener('keydown', e => {
+    audio.unlock();
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = keyName(e);
+    if (k === 'm') { toggleMute(); return; }
+    if (mode === 'play') {
+      if (JUMP_KEYS[k]) { e.preventDefault(); if (!e.repeat && !heldKeys.has(k)) jumpLatch = true; heldKeys.add(k); return; }
+      if (SCREAM_KEYS[k]) { e.preventDefault(); if (!e.repeat) screamLatch = true; return; }
+      if (k === 'p' || k === 'Escape') { e.preventDefault(); pause(); }
+      return;
+    }
+    if (mode === 'dying') { if (JUMP_KEYS[k] || k === 'Enter') e.preventDefault(); return; }
+    if (mode === 'pause') { if (k === 'p' || k === 'Escape') { e.preventDefault(); resume(); } return; }
+    if (mode === 'shop') { if (k === 'Escape') { e.preventDefault(); closeShop(); } return; }
+    if (mode === 'over' || mode === 'title') {
+      if ((k === ' ' || k === 'Enter') && !e.repeat) {
+        const ae = document.activeElement;
+        const primary = mode === 'over' ? $('btnAgain') : $('btnPlay');
+        if (ae && ae.tagName === 'BUTTON' && ae !== primary) return; // let the focused button act
+        e.preventDefault();
+        if (mode === 'over' && performance.now() - overShownAt < 150) return;
+        startRun();
+      }
+    }
+  });
+  window.addEventListener('keyup', e => { heldKeys.delete(keyName(e)); if (e.key === ' ') heldKeys.delete(' '); });
+
+  canvas.addEventListener('pointerdown', e => {
+    audio.unlock();
+    if (mode !== 'play') return;
+    const r = canvas.getBoundingClientRect();
+    if (e.clientX - r.left <= r.width * 0.7) {
+      e.preventDefault();
+      jumpLatch = true; heldPointers.add(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* optional */ }
+    }
+  });
+  const endPointer = e => { heldPointers.delete(e.pointerId); };
+  window.addEventListener('pointerup', endPointer);
+  window.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('pointerdown', () => audio.unlock(), true);
+
+  function screamButton(btn) {
+    btn.addEventListener('pointerdown', e => { e.preventDefault(); audio.unlock(); if (mode === 'play') screamLatch = true; });
+    btn.addEventListener('click', e => { if (e.detail === 0 && mode === 'play') screamLatch = true; });
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  screamButton($('screamBtn'));
+  screamButton($('padScream'));
+  const padJump = $('padJump');
+  padJump.addEventListener('pointerdown', e => {
+    e.preventDefault(); audio.unlock();
+    if (mode !== 'play') return;
+    jumpLatch = true; heldPointers.add(e.pointerId);
+    try { padJump.setPointerCapture(e.pointerId); } catch (err) { /* optional */ }
+  });
+  padJump.addEventListener('click', e => { if (e.detail === 0 && mode === 'play') jumpLatch = true; });
+  padJump.addEventListener('contextmenu', e => e.preventDefault());
+
+  $('pauseBtn').addEventListener('click', () => pause());
+  $('btnPlay').addEventListener('click', () => { audio.unlock(); startRun(); });
+  $('btnShopT').addEventListener('click', () => { audio.unlock(); openShop('title'); });
+  $('btnShopBack').addEventListener('click', closeShop);
+  $('btnResume').addEventListener('click', resume);
+  $('btnMute').addEventListener('click', toggleMute);
+  $('btnQuit').addEventListener('click', () => { game = null; showTitle(); });
+  $('btnAgain').addEventListener('click', () => { audio.unlock(); startRun(); });
+  $('btnShopO').addEventListener('click', () => openShop('over'));
+  $('btnMenu').addEventListener('click', showTitle);
+
+  window.addEventListener('blur', () => { releaseAll(); pause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { releaseAll(); pause(); } last = 0; });
+
+  /* ---------- boot ---------- */
+  showTitle();
+  window.requestAnimationFrame(frame);
+})();
+
+</script>
+
+</body>
+</html>

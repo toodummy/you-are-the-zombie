@@ -1,0 +1,823 @@
+<title>You Are the Zombie</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: one 16:9 game stage, centred, with touch controls below it on phones. Single dark look taken from the concept art. */
+:root{
+  color-scheme:dark;
+  --night:#1B1230; --ink:#17121F; --bone:#F4EFD8; --acid:#C6F135; --coral:#FF5A3C; --teal:#5CC8C2; --lilac:#B9A3F0;
+  --display:'Bowlby One',Impact,sans-serif; --body:'Space Grotesk','Trebuchet MS',Arial,sans-serif;
+  --controls:0px;
+}
+html,body{height:100%}
+body{background:var(--ink);color:var(--bone);font-family:var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box;overflow:hidden;
+  touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.stage{position:relative;width:min(100%,calc((100dvh - 16px - var(--controls))*16/9));aspect-ratio:16/9;max-width:100%;container-type:inline-size;background:var(--night)}
+canvas{display:block;width:100%;height:100%}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:1.4cqw;padding:3cqw 5cqw;box-sizing:border-box;overflow:auto}
+.screen.dim{background:rgba(23,18,31,.72)}
+.screen h1{margin:0;font:400 max(30px,8.4cqw)/1 var(--display);text-wrap:balance}
+.screen h1 span{color:var(--acid);display:block}
+.screen p{margin:0;font-size:max(13px,2cqw);line-height:1.35;max-width:52ch;font-weight:700}
+.keys{display:grid;grid-template-columns:auto auto;gap:.4cqw 2cqw;font-size:max(12px,1.5cqw);font-weight:500;max-width:60cqw;background:var(--ink);padding:1cqw 1.4cqw}
+.keys b{color:var(--acid);font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:1.2cqw;margin-top:.8cqw}
+.btn{font:400 max(15px,2.3cqw)/1 var(--display);padding:max(11px,1.3cqw) max(18px,2.6cqw);background:var(--acid);color:var(--ink);border:4px solid var(--ink);box-shadow:0 0 0 2px var(--acid);cursor:pointer}
+.btn.alt{background:var(--bone);box-shadow:0 0 0 2px var(--bone)}
+.btn:hover{filter:brightness(1.1)}
+.btn:focus-visible,.pad button:focus-visible{outline:3px solid var(--coral);outline-offset:3px}
+.pad{display:none;width:100%;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+.pad div{display:flex;gap:8px;flex:1 1 240px;max-width:300px;min-width:0}
+.pad button{font:400 13px/1 var(--display);flex:1 1 0;min-width:0;height:60px;border:3px solid var(--ink);color:var(--ink);background:var(--bone);touch-action:none;padding:0}
+.pad .bite{background:var(--coral)}.pad .rush{background:var(--acid)}.pad .scream{background:var(--lilac);font-size:11px}
+@media (pointer:coarse){
+  :root{--controls:150px}
+  .pad{display:flex}
+  .keys{display:none}
+}
+@media (pointer:coarse) and (orientation:landscape){
+  :root{--controls:0px}
+  .pad{position:fixed;left:0;right:0;bottom:6px;box-sizing:border-box;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+  .pad button{pointer-events:auto;opacity:.82}
+}
+</style>
+
+<div class="stage">
+  <canvas id="c" width="1280" height="720" role="img" aria-label="You Are the Zombie game screen"></canvas>
+  <div class="screen" id="screen">
+    <h1 id="sTitle">You are<span>the zombie</span></h1>
+    <p id="sText">One bite. Then a horde. Reach the lab and smash the cure before it is finished.</p>
+    <div class="keys" id="keys">
+      <b>A D or arrows</b><span>Walk</span>
+      <b>W, Up or Space</b><span>Jump</span>
+      <b>J</b><span>Bite</span>
+      <b>K</b><span>Rush: the horde speeds up</span>
+      <b>L</b><span>Scream: stuns nearby humans</span>
+      <b>P / M</b><span>Pause / sound</span>
+    </div>
+    <div class="row">
+      <button class="btn" id="primary" type="button">Start biting</button>
+      <button class="btn alt" id="secondary" type="button" hidden>Start over</button>
+    </div>
+  </div>
+</div>
+<div class="pad" id="pad" aria-label="Touch controls">
+  <div>
+    <button type="button" data-k="left" aria-label="Walk left">LEFT</button>
+    <button type="button" data-k="right" aria-label="Walk right">RIGHT</button>
+    <button type="button" data-k="jump">JUMP</button>
+  </div>
+  <div>
+    <button type="button" class="bite" data-k="bite">BITE</button>
+    <button type="button" class="rush" data-k="rush">RUSH</button>
+    <button type="button" class="scream" data-k="scream">SCREAM</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const W = 1280, H = 720, GROUND = 566, GRAV = 1900, JUMP = 760, MAX_HORDE = 40;
+const INK = '#17121F', BONE = '#F4EFD8', ACID = '#C6F135', CORAL = '#FF5A3C', TEAL = '#5CC8C2', LILAC = '#B9A3F0', GOLD = '#FFC15C';
+const SKIN = '#A5C46A', SHADE = '#7C9E4E';
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage is optional */ } }
+};
+
+/* ---------- Drawing helpers: the sprites reuse the concept art's paths ---------- */
+const cache = new Map();
+const path = d => { let p = cache.get(d); if (!p) { p = new Path2D(d); cache.set(d, p); } return p; };
+function F(d, fill) { g.fillStyle = fill; g.fill(path(d)); g.lineWidth = 6; g.strokeStyle = INK; g.stroke(path(d)); }
+function N(d, fill) { g.fillStyle = fill; g.fill(path(d)); }
+function S(d) { g.lineWidth = 4; g.strokeStyle = INK; g.stroke(path(d)); }
+function O(x, y, r, fill, line) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = fill; g.fill(); if (line) { g.lineWidth = 6; g.strokeStyle = INK; g.stroke(); } }
+function E(x, y, rx, ry, fill) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke(); }
+function L(pts, color, w) {
+  w = w || 13;
+  g.lineCap = g.lineJoin = 'round';
+  for (const [c, lw] of [[INK, w + 11], [color, w]]) {
+    g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+    g.strokeStyle = c; g.lineWidth = lw; g.stroke();
+  }
+}
+function moved(x, y, fn) { g.save(); g.translate(x, y); fn(); g.restore(); }
+
+/* Each sprite is drawn in concept-art units: about 300 wide, feet at y 420. */
+function heroSprite(a, skin, gown, leader) {
+  const s = Math.sin(a.t), c = Math.cos(a.t), sw = a.moving ? 26 : 0;
+  const up1 = a.moving ? Math.max(0, c) * 16 : 0, up2 = a.moving ? Math.max(0, -c) * 16 : 0;
+  L([[128, 335], [122 + s * sw, 406 - up1]], skin, 22);
+  L([[178, 335], [186 - s * sw, 406 - up2]], skin, 22);
+  moved(s * sw, -up1, () => F('M102 422 Q104 398 124 398 Q142 400 142 422 Z', skin));
+  moved(-s * sw, -up2, () => F('M168 422 Q170 398 188 398 Q212 402 212 422 Z', skin));
+  L([[98, 222], [68 - s * 8, 262], [64 - s * 14, 322]], skin, 22);
+  moved(-s * 14, 0, () => F('M46 318 Q64 304 84 318 L80 346 L72 336 L66 352 L58 336 L50 346 Z', skin));
+  F('M100 196 Q150 176 200 196 L226 336 L204 350 L186 334 L166 356 L146 336 L122 354 L100 336 L78 348 Z', gown);
+  N('M168 188 Q190 190 197 196 L223 336 L204 346 L186 331 L178 340 Q196 260 168 188 Z', 'rgba(23,18,31,.22)');
+  if (leader) { g.fillStyle = INK; g.font = '60px ' + 'Bowlby One, Impact'; g.textAlign = 'center'; g.fillText('0', 150, 298); }
+  const r = a.atk > 0 ? 34 : s * 6;
+  L([[198, 222], [250 + r * .5, 226], [288 + r, 206]], skin, 22);
+  if (leader) moved(r * .6, 0, () => F('M246 204 L266 200 L272 232 L252 236 Z', CORAL));
+  moved(r, 0, () => F('M276 190 L312 178 L304 194 L326 194 L306 208 L320 222 L282 222 Z', skin));
+  const bob = a.moving ? Math.abs(s) * -6 : 0;
+  moved(0, bob, () => {
+    F('M72 112 Q66 30 150 26 Q238 28 234 116 Q232 176 192 186 L112 186 Q76 176 72 112 Z', skin);
+    N('M196 38 Q236 60 231 116 Q229 174 192 183 L160 183 Q220 140 196 38 Z', 'rgba(23,18,31,.22)');
+    S('M130 28 Q120 8 104 10 M152 26 Q152 4 168 2 M174 30 Q188 14 204 20');
+    S('M84 78 L126 60 M92 66 L98 82 M104 60 L110 76 M116 54 L122 70');
+    if (a.atk > 0) {
+      F('M92 86 L150 112 L92 124 Z', CORAL); F('M214 86 L160 112 L214 124 Z', CORAL);
+      F('M92 140 H216 V206 H92 Z', '#3A1226');
+      g.fillStyle = BONE; g.fill(path('M92 140 L108 166 L124 140 L140 166 L156 140 L172 166 L188 140 L204 166 L216 140 Z'));
+      g.fill(path('M92 206 L108 182 L124 206 L140 182 L156 206 L172 182 L188 206 L204 182 L216 206 Z'));
+    } else {
+      O(122, 108, 32, BONE, true); O(130, 112, 9, INK);
+      O(192, 112, 18, BONE, true); O(190, 116, 5, INK);
+      F('M104 156 Q150 146 206 154 Q204 206 156 214 Q112 210 104 156 Z', '#3A1226');
+      N('M128 198 Q150 180 176 198 Q152 212 128 198 Z', CORAL);
+      g.fillStyle = BONE; g.fill(path('M118 154 L128 172 L138 152 Z M160 151 L170 167 L180 152 Z'));
+    }
+  });
+}
+function runnerSprite(a) {
+  const s = Math.sin(a.t) * 30, skin = '#B7B98A';
+  L([[130, 270], [70 - s, 320], [40 - s, 296 - s * .4]], skin);
+  L([[140, 170], [80, 214 + s * .4], [60, 180 + s * .4]], skin);
+  L([[146, 276], [194 + s * .6, 330], [172 + s, 396]], skin);
+  moved(s, 0, () => F('M150 392 L196 392 L208 414 L150 414 Z', CORAL));
+  F('M120 150 L198 130 L172 280 L116 280 Z', CORAL);
+  F('M114 262 L172 262 L178 300 L146 304 L138 286 L122 304 L100 296 Z', '#2F6FB0');
+  L([[184, 160], [244, 206 - s * .3], [288 + (a.atk > 0 ? 24 : 0), 182 - s * .3]], skin);
+  E(226, 100, 50, 54, skin);
+  F('M178 84 L274 74 L276 96 L178 106 Z', BONE);
+  O(244, 120, 12, BONE, true); O(248, 122, 4, INK);
+  F('M210 136 L270 132 L262 162 L222 164 Z', '#3A1226');
+}
+function bruteSprite(a) {
+  const s = Math.sin(a.t) * 12, skin = '#9FB26C', k = a.atk > 0 ? -60 : 0;
+  moved(s, 0, () => { F('M96 320 L150 320 L146 400 L88 400 Z', '#2B2540'); F('M78 400 H150 V420 H72 Z', INK); });
+  moved(-s, 0, () => { F('M160 320 L214 320 L222 400 L164 400 Z', '#2B2540'); F('M160 400 H232 L238 420 H160 Z', INK); });
+  F('M40 160 Q150 96 260 160 L232 334 L80 334 Z', '#2B2540');
+  g.fillStyle = BONE; g.font = '24px Bowlby One, Impact'; g.textAlign = 'center'; g.fillText('SECURITY', 150, 248);
+  L([[60, 180], [12, 244], [32, 322 + k]], skin, 60); L([[240, 180], [288, 244], [268 + (k ? 30 : 0), 322 + k]], skin, 60);
+  O(32, 344 + k, 40, skin, true); O(268 + (k ? 30 : 0), 344 + k, 40, skin, true);
+  F('M116 72 Q150 46 184 72 L190 136 L110 136 Z', skin);
+  O(134, 92, 6, INK); O(166, 92, 6, INK);
+  S('M122 80 L142 86 M178 80 L158 86');
+  F('M126 134 L134 112 L144 134 Z', BONE); F('M156 134 L166 112 L174 134 Z', BONE);
+}
+function spitterSprite(a) {
+  const s = Math.sin(a.t) * 18, skin = '#B5B079', p = a.atk > 0 ? 8 : 0;
+  L([[130, 320], [122 + s, 400]], skin); L([[170, 320], [180 - s, 400]], skin);
+  moved(s, 0, () => F('M98 396 H136 V414 H94 Z', INK));
+  moved(-s, 0, () => F('M166 396 H206 L210 414 H166 Z', INK));
+  F('M100 196 L200 196 L212 334 L90 334 Z', BONE);
+  O(136, 252, 6, INK); O(136, 292, 6, INK);
+  L([[104, 212], [72, 262], [86, 306]], skin);
+  O(172, 178, 64 + p, ACID, true); O(192, 160, 16, '#EEFFA6'); O(150, 200, 9, '#EEFFA6');
+  E(150, 90, 58, 48, skin);
+  F('M100 58 Q82 22 120 20 Q132 -10 170 8 Q214 6 202 58 Z', BONE);
+  O(126, 88, 15, BONE, true); O(130, 90, 5, INK);
+  F('M170 80 L216 66 L216 122 L166 110 Z', '#3A1226');
+}
+function crawlerSprite(a) {
+  const s = Math.sin(a.t) * 22, skin = '#A9B884';
+  L([[92, 290], [50, 340 - s * .4], [84 + s, 390]], skin);
+  L([[124, 292], [100, 350 + s * .4], [134 - s, 392]], skin);
+  F('M60 300 Q60 220 150 214 Q230 214 236 300 Z', '#2F6FB0');
+  S('M100 216 L104 300 M178 218 L176 300');
+  L([[196, 276], [216, 334 - s * .4], [196 - s, 396]], skin);
+  L([[226, 268], [280, 324 + s * .4], [256 + s, 398]], skin);
+  E(250, 236, 52, 46, skin);
+  F('M202 214 Q250 160 298 212 L322 220 L298 228 L206 228 Z', CORAL);
+  O(232, 238, 9, BONE, true); O(270, 238, 9, BONE, true);
+  F('M216 256 L288 254 L278 276 L226 278 Z', '#3A1226');
+}
+const JOBS = {
+  plain: { shirt: GOLD, legs: '#3E6FA8', label: '' },
+  jogger: { shirt: CORAL, legs: '#2F6FB0', label: 'JOGGER' },
+  bouncer: { shirt: '#2B2540', legs: '#2B2540', label: 'BOUNCER' },
+  chef: { shirt: BONE, legs: '#55606E', label: 'CHEF' },
+  plumber: { shirt: '#2F6FB0', legs: '#2F6FB0', label: 'PLUMBER' }
+};
+function civSprite(h, a) {
+  const j = JOBS[h.job], s = a.moving ? Math.sin(a.t) * 28 : 0, skin = h.tone;
+  L([[136, 280], [120 - s, 340], [104 - s, 400]], j.legs, 22);
+  L([[166, 280], [186 + s, 340], [200 + s, 400]], j.legs, 22);
+  F('M110 150 L190 150 L186 292 L114 292 Z', j.shirt);
+  if (h.job === 'plumber') F('M124 150 H176 V200 H124 Z', '#2F6FB0');
+  const up = a.moving || h.stun > 0 ? 0 : 60;
+  L([[116, 166], [60, 112 + up], [50, 54 + up * 1.9]], skin, 22);
+  L([[186, 166], [240, 104 + up], [256, 48 + up * 2]], skin, 22);
+  E(150, 98, 48, 52, skin);
+  F('M100 92 Q96 36 150 38 Q204 36 200 92 Q176 66 150 72 Q124 66 100 92 Z', h.hair);
+  if (h.job === 'jogger') F('M100 66 L200 66 L200 84 L100 84 Z', BONE);
+  if (h.job === 'chef') F('M100 58 Q82 22 120 20 Q132 -10 170 8 Q214 6 202 58 Z', BONE);
+  if (h.job === 'plumber') F('M100 62 Q150 10 200 62 L232 68 L200 76 L104 76 Z', CORAL);
+  O(130, 102, 13, BONE, true); O(130, 102, 3, INK);
+  O(170, 102, 13, BONE, true); O(170, 102, 3, INK);
+  E(150, 130, 13, 14, '#3A1226');
+}
+function copSprite(h, a) {
+  const s = a.moving ? Math.sin(a.t) * 14 : 0;
+  moved(s, 0, () => { F('M100 320 H148 V400 H96 Z', '#2B3A55'); F('M90 398 H150 V418 H86 Z', INK); });
+  moved(-s, 0, () => { F('M156 320 H204 L208 400 H156 Z', '#2B3A55'); F('M154 398 H212 L216 418 H154 Z', INK); });
+  F('M92 170 L208 170 L214 326 L86 326 Z', '#2B3A55');
+  F('M254 112 L280 18 L294 22 L268 116 Z', INK);
+  L([[202, 190], [248, 170], [260, 104]], '#2B3A55', 22);
+  O(150, 106, 56, '#1E2A40', true);
+  F('M100 94 H200 V136 Q150 152 100 136 Z', '#8FD0E0');
+  O(130, 114, 5, INK); O(170, 114, 5, INK);
+  if (h.shield) {
+    const low = h.stun > 0 ? 70 : 0;
+    moved(0, low, () => {
+      g.globalAlpha = .9; F('M16 170 H176 V404 Q96 430 16 404 Z', '#BFE3EE'); g.globalAlpha = 1;
+      N('M36 190 H76 L36 280 Z', BONE);
+      g.fillStyle = INK; g.font = '40px Bowlby One, Impact'; g.textAlign = 'center'; g.fillText('RIOT', 96, 304);
+    });
+  }
+}
+function soldierSprite(h) {
+  F('M100 310 H148 L146 400 H98 Z', '#5F6B3A'); F('M156 310 H204 L208 400 H158 Z', '#5F6B3A');
+  F('M90 396 H150 V418 H86 Z', INK); F('M154 396 H214 L218 418 H154 Z', INK);
+  F('M94 170 L206 170 L210 320 L90 320 Z', '#5F6B3A'); F('M106 178 H194 V290 H106 Z', '#3E4728');
+  L([[104, 192], [124, 232], [172, 226]], '#5F6B3A', 22);
+  F('M52 212 H262 V228 H192 L184 262 H160 L166 228 H52 Z', INK);
+  if (h.flash > 0) F('M264 220 L294 204 L286 218 L302 224 L286 230 L292 246 Z', GOLD);
+  O(150, 110, 50, '#3E4728', true);
+  F('M92 96 Q92 36 150 36 Q208 36 208 96 L226 104 H74 Z', '#5F6B3A');
+  O(126, 122, 15, CORAL, true); O(174, 122, 15, CORAL, true); O(150, 152, 17, '#8A8F72', true);
+}
+function sciSprite(h, a) {
+  const s = a.moving ? Math.sin(a.t) * 10 : 0;
+  moved(-20, 0, () => {
+    g.beginPath(); g.roundRect(54, 170, 66, 150, 28); g.fillStyle = TEAL; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+  });
+  moved(s, 0, () => F('M122 392 H176 V416 H118 Z', INK));
+  moved(-s, 0, () => F('M182 392 H234 L238 416 H182 Z', INK));
+  F('M100 160 Q150 140 200 160 L226 330 L226 396 H180 L168 330 L168 396 H122 L88 330 Z', '#F2C53C');
+  F('M112 214 H124 V202 H138 V214 H150 V228 H138 V240 H124 V228 H112 Z', TEAL);
+  F('M178 222 L270 200 L274 214 L182 236 Z', INK);
+  L([[196, 180], [214, 222], [196, 230]], '#F2C53C', 22);
+  E(150, 100, 66, 68, '#F2C53C'); E(158, 100, 44, 38, '#BFE3EE');
+  g.beginPath(); g.ellipse(158, 108, 28, 26, 0, 0, 7); g.fillStyle = '#8A5A3C'; g.fill();
+  O(146, 104, 4, INK); O(172, 104, 4, INK);
+}
+
+/* ---------- Game data ---------- */
+const TYPES = {
+  basic: { hp: 3, spd: 140, dmg: 1, cd: .7, s: .24, r: 36, tall: 95 },
+  runner: { hp: 2, spd: 215, dmg: 1, cd: .45, s: .3, r: 36, tall: 105 },
+  brute: { hp: 12, spd: 125, dmg: 4, cd: 1, s: .38, r: 58, tall: 150 },
+  spitter: { hp: 3, spd: 135, dmg: 2, cd: 1.4, s: .3, r: 310, tall: 110 },
+  crawler: { hp: 4, spd: 160, dmg: 1, cd: .6, s: .3, r: 36, tall: 40 }
+};
+const JOB_TO_TYPE = { plain: 'basic', jogger: 'runner', bouncer: 'brute', chef: 'spitter', plumber: 'crawler' };
+const TONES = ['#D9A374', '#8A5A3C', '#E8C29F', '#B5805A'];
+const HAIR = ['#4A2C1C', '#17121F', '#9A6A2E', '#7A3A2A'];
+const LEVELS = [
+  { name: 'The Suburbs', sub: 'Dusk. Quiet streets, easy bites.', len: 3500, cure: .36, theme: 0,
+    people: [[640, 'plain'], [820, 'plain'], [1040, 'jogger'], [1270, 'chef'], [1420, 'plain'], [1720, 'bouncer'], [1920, 'plain'], [2150, 'plumber'], [2300, 'plain'], [2440, 'plain'], [2800, 'bouncer'], [2950, 'chef']],
+    cars: [930, 2040], riot: [2620, 3050], walls: [[3200, 70]], soldiers: [], sci: [] },
+  { name: 'Downtown', sub: 'Night. Riot police and fire in the street.', len: 4500, cure: .4, theme: 1,
+    people: [[420, 'plain'], [560, 'jogger'], [700, 'plain'], [900, 'bouncer'], [1250, 'chef'], [1330, 'plain'], [1500, 'plain'], [1660, 'plumber'], [2500, 'bouncer'], [2640, 'plain'], [2760, 'jogger'], [2900, 'chef'], [3100, 'plain'], [3920, 'plain']],
+    cars: [780, 1560, 2980], riot: [1120, 1180, 2820, 2880, 3320], walls: [[2080, 150], [3560, 200]], soldiers: [2200, 2280, 3680, 3760], sci: [] },
+  { name: 'Quarantine', sub: 'Dawn. Smash the cure machine in the lab.', len: 5300, cure: .44, theme: 2,
+    people: [[500, 'plain'], [700, 'bouncer'], [1420, 'chef'], [1520, 'plain'], [2120, 'bouncer'], [2240, 'plain'], [2320, 'plumber'], [3350, 'chef'], [3480, 'bouncer'], [3580, 'plain']],
+    cars: [1300, 3250], riot: [1640, 1700, 3150], walls: [[1000, 180], [2600, 240], [3950, 300]], soldiers: [1110, 1190, 2720, 2800, 2880, 4060, 4140], sci: [1860, 3020, 3720, 4420, 4560], machine: 4960 }
+];
+const HINTS = [
+  [120, 'Walk right. Press BITE next to a person to turn them.'],
+  [960, 'Who you bite decides what you get. Look at the job above their head.'],
+  [2480, 'Riot shields stop you from the front. Scream, jump behind them, or send a Brute.'],
+  [3000, 'Walls block the road. Stand close and your horde will smash them.']
+];
+
+/* ---------- State ---------- */
+let G = null, mode = 'title', last = 0, time = 0, shake = 0, muted = store.get('zombie-muted') === '1';
+const keys = {};
+let best = parseInt(store.get('zombie-best') || '0', 10) || 0;
+
+function newRun() {
+  return { level: 0, cure: 0, bitten: 0, seconds: 0, roster: [], startCure: 0, startRoster: [], startBitten: 0 };
+}
+function human(kind, x, job) {
+  return { kind, x, lane: rnd(6, 56), job: job || 'plain', hp: { civ: 1, riot: 7, soldier: 6, sci: 9 }[kind], shield: kind === 'riot', stun: 0, cd: rnd(.2, 1.2),
+    t: rnd(0, 6), moving: false, hurt: 0, flash: 0, tone: TONES[Math.floor(rnd(0, 4))], hair: HAIR[Math.floor(rnd(0, 4))], fast: job === 'jogger' ? 215 : rnd(115, 145) };
+}
+function loadLevel(i) {
+  const L0 = LEVELS[i];
+  G.lv = L0; G.level = i;
+  G.p = { x: 170, y: 0, vy: 0, face: 1, hp: 100, t: 0, moving: false, atk: 0, biteCd: 0, rushCd: 0, rushT: 0, screamCd: 0, inv: 0, ground: true };
+  G.humans = []; G.shots = []; G.fx = []; G.floats = []; G.cam = 0; G.hint = ''; G.hintT = 0; G.banner = 3; G.hints = i === 0 ? HINTS.slice() : [];
+  L0.people.forEach(p => G.humans.push(human('civ', p[0], p[1])));
+  L0.riot.forEach(x => G.humans.push(human('riot', x)));
+  L0.soldiers.forEach(x => { const h = human('soldier', x); G.humans.push(h); });
+  L0.sci.forEach(x => G.humans.push(human('sci', x)));
+  G.walls = L0.walls.map(w => ({ x: w[0], w: 60, hp: w[1], max: w[1], kind: 'wall' }));
+  if (L0.machine) G.walls.push({ x: L0.machine, w: 190, hp: 420, max: 420, kind: 'machine' });
+  G.cars = L0.cars.map(x => ({ x, w: 210, h: 86 }));
+  G.z = G.roster.map((type, n) => makeZombie(type, 120 - n * 26));
+  G.startRoster = G.roster.slice(); G.startCure = G.cure; G.startBitten = G.bitten;
+}
+function makeZombie(type, x) {
+  return { type, x, lane: rnd(0, 62), hp: TYPES[type].hp, t: rnd(0, 6), moving: false, atk: 0, cd: rnd(0, .6), jit: rnd(-22, 22), hurt: 0, tgt: null, wall: null, think: rnd(0, .25) };
+}
+function start(fresh) {
+  if (fresh || !G) G = newRun();
+  else { G.roster = G.startRoster.slice(); G.cure = G.startCure; G.bitten = G.startBitten; }
+  loadLevel(G.level);
+  setMode('play');
+}
+
+/* ---------- Screens ---------- */
+const $ = id => document.getElementById(id);
+function setMode(m, title, text, primary, secondary) {
+  mode = m;
+  const on = m !== 'play';
+  $('screen').hidden = !on;
+  $('screen').classList.toggle('dim', m !== 'title');
+  $('keys').hidden = !(m === 'title' || m === 'pause');
+  if (on && title) {
+    $('sTitle').innerHTML = title; $('sText').textContent = text;
+    $('primary').textContent = primary; $('secondary').hidden = !secondary;
+    if (secondary) $('secondary').textContent = secondary;
+    $('primary').focus({ preventScroll: true });
+  }
+  if (!on && document.activeElement) document.activeElement.blur();
+}
+function pause() { if (mode === 'play') setMode('pause', 'Paused', 'The horde waits. The cure does not, but we will let it slide.', 'Keep going', 'Start over'); }
+$('primary').addEventListener('click', () => {
+  sound('bite');
+  if (mode === 'title') start(true);
+  else if (mode === 'pause') setMode('play');
+  else if (mode === 'clear') { G.level++; G.roster = G.z.map(z => z.type); loadLevel(G.level); setMode('play'); }
+  else if (mode === 'over') start(false);
+  else if (mode === 'win') start(true);
+});
+$('secondary').addEventListener('click', () => { G = null; start(true); });
+
+/* ---------- Sound ---------- */
+let ac = null;
+function sound(k) {
+  if (muted) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    const v = { bite: [170, 70, .1, 'sawtooth', .16], shot: [720, 180, .06, 'square', .05], hit: [120, 60, .1, 'square', .1], turn: [240, 520, .2, 'triangle', .16],
+      rush: [200, 620, .3, 'sawtooth', .1], scream: [900, 240, .55, 'sawtooth', .13], wall: [90, 50, .24, 'square', .18], bad: [300, 90, .5, 'sawtooth', .16], good: [330, 880, .5, 'triangle', .18] }[k];
+    const o = ac.createOscillator(), a = ac.createGain(), n = ac.currentTime;
+    o.type = v[3]; o.frequency.setValueAtTime(v[0], n); o.frequency.exponentialRampToValueAtTime(v[1], n + v[2]);
+    a.gain.setValueAtTime(v[4], n); a.gain.exponentialRampToValueAtTime(.001, n + v[2]);
+    o.connect(a); a.connect(ac.destination); o.start(n); o.stop(n + v[2]);
+  } catch (e) { /* sound is optional */ }
+}
+
+/* ---------- Input ---------- */
+const MAP = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', j: 'bite', z: 'bite', k: 'rush', x: 'rush', l: 'scream', c: 'scream' };
+addEventListener('keydown', e => {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key, a = MAP[key];
+  if (key === 'p' || key === 'Escape') { if (mode === 'play') pause(); else if (mode === 'pause') setMode('play'); return; }
+  if (key === 'm') { muted = !muted; store.set('zombie-muted', muted ? '1' : '0'); return; }
+  if (mode === 'play' && a) { e.preventDefault(); if (!e.repeat) press(a); keys[a] = true; }
+});
+addEventListener('keyup', e => { const a = MAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]; if (a) keys[a] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+document.querySelectorAll('#pad button').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); if (mode === 'play') { press(k); keys[k] = true; } });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => b.addEventListener(n, () => { keys[k] = false; }));
+});
+function press(a) {
+  const p = G.p;
+  if (a === 'jump' && p.ground) { p.vy = JUMP; p.ground = false; }
+  if (a === 'bite' && p.biteCd <= 0) bite();
+  if (a === 'rush' && p.rushCd <= 0) { p.rushT = 1.6; p.rushCd = 8; sound('rush'); floatText(p.x, 160, 'RUSH', ACID); }
+  if (a === 'scream' && p.screamCd <= 0) {
+    p.screamCd = 12; sound('scream'); shake = 8; G.fx.push({ ring: 1, x: p.x, y: GROUND - 60, r: 30, life: .5 });
+    G.humans.forEach(h => { if (Math.abs(h.x - p.x) < 460) h.stun = 2.8; });
+  }
+}
+function bite() {
+  const p = G.p, reach = 118;
+  p.biteCd = .34; p.atk = .24; sound('bite');
+  let tgt = null, d = 1e9;
+  for (const h of G.humans) {
+    const dx = Math.abs(h.x - p.x);
+    if (dx < reach && dx < d && p.y < 130) { tgt = h; d = dx; }
+  }
+  if (tgt) { hitHuman(tgt, 2, p.x, 'hero'); return; }
+  for (const w of G.walls) {
+    if (w.hp > 0 && p.x > w.x - 110 && p.x < w.x + w.w + 40) { hitWall(w, w.kind === 'machine' ? 4 : 2); return; }
+  }
+}
+
+/* ---------- Combat ---------- */
+function floatText(x, h, text, color) { G.floats.push({ x, y: GROUND - h, text, color, life: .9 }); }
+function burst(x, y, color, n) {
+  for (let i = 0; i < n && G.fx.length < 180; i++) G.fx.push({ x, y, vx: rnd(-220, 220), vy: rnd(-300, -30), color, life: rnd(.25, .6), r: rnd(3, 7) });
+}
+function hitHuman(h, dmg, fromX, src) {
+  if (h.shield && h.stun <= 0 && fromX < h.x && src !== 'brute' && src !== 'bile') {
+    floatText(h.x, 130, 'BLOCKED', '#BFE3EE'); sound('hit'); return;
+  }
+  if (h.shield && src === 'brute') { h.shield = false; floatText(h.x, 130, 'SHIELD BROKEN', GOLD); shake = 6; sound('wall'); }
+  h.hp -= dmg; h.hurt = .14; burst(h.x, GROUND - 70 + h.lane, CORAL, 4);
+  if (h.hp <= 0) turn(h);
+}
+function turn(h) {
+  G.humans.splice(G.humans.indexOf(h), 1);
+  const type = h.kind === 'civ' ? JOB_TO_TYPE[h.job] : 'basic';
+  G.bitten++;
+  burst(h.x, GROUND - 60 + h.lane, ACID, 14); sound('turn');
+  G.p.hp = Math.min(100, G.p.hp + (h.kind === 'civ' ? 7 : 12));
+  if (h.kind === 'sci') { G.cure = Math.max(0, G.cure - 7); floatText(h.x, 170, 'CURE SET BACK', TEAL); }
+  if (G.z.length < MAX_HORDE) {
+    const z = makeZombie(type, h.x); z.lane = h.lane; G.z.push(z);
+    floatText(h.x, 140, type === 'basic' ? '+1' : '+' + type.toUpperCase(), ACID);
+  } else floatText(h.x, 140, 'HORDE FULL', ACID);
+}
+function hitWall(w, dmg) {
+  w.hp -= dmg; burst(w.x + w.w / 2, GROUND - 70, w.kind === 'machine' ? TEAL : '#8A8F72', 3);
+  if (w.hp <= 0) {
+    shake = 12; sound('wall'); burst(w.x + w.w / 2, GROUND - 70, GOLD, 26);
+    if (w.kind === 'machine') win();
+  }
+}
+function hurtZ(z, d) {
+  z.hp -= d; z.hurt = .14; burst(z.x, GROUND - 40 + z.lane, SHADE, 3);
+  if (z.hp <= 0) { const i = G.z.indexOf(z); if (i >= 0) G.z.splice(i, 1); }
+}
+function hurtP(d) {
+  const p = G.p;
+  if (p.inv > 0) return;
+  p.hp -= d; p.inv = .45; shake = 5; sound('hit'); burst(p.x, GROUND - 90 - p.y, CORAL, 7);
+  if (p.hp <= 0) lose('Patient Zero fell', 'Without a leader, the horde scatters. Try this level again with the same horde.');
+}
+function lose(t, x) {
+  sound('bad');
+  G.roster = G.startRoster.slice();
+  setMode('over', t, x, 'Try this level again', 'Start over');
+}
+function win() {
+  sound('good');
+  const score = G.bitten * 10 + G.z.length * 25 + Math.round(100 - G.cure) * 5;
+  if (score > best) { best = score; store.set('zombie-best', String(best)); }
+  setMode('win', 'The cure<span>is gone</span>', 'You turned ' + G.bitten + ' people and finished with a horde of ' + G.z.length + '. Score ' + score + '. Best ' + best + '.', 'Play again');
+}
+function nextLevel() {
+  sound('good');
+  setMode('clear', LEVELS[G.level + 1].name, LEVELS[G.level].name + ' has fallen. Horde size: ' + G.z.length + '. Next: ' + LEVELS[G.level + 1].sub, 'Keep going');
+}
+function nearestZ(x, range, skipLow) {
+  let best0 = null, d = range;
+  const consider = (e, isP) => { const t = Math.abs(e.x - x); if (t < d && !(skipLow && !isP && e.type === 'crawler')) { best0 = e; d = t; } };
+  consider(G.p, true); G.z.forEach(z => consider(z, false));
+  return best0;
+}
+const wallAhead = x => { for (const w of G.walls) if (w.hp > 0 && w.x + w.w > x - 30) return w; return null; };
+
+/* ---------- Update ---------- */
+function update(dt) {
+  const p = G.p, lv = G.lv;
+  G.seconds += dt; G.cure += lv.cure * dt; G.banner = Math.max(0, G.banner - dt);
+  if (G.cure >= 100) { lose('The cure is ready', 'The lab finished first. Every zombie wakes up human. Try this level again.'); return; }
+  for (const k of ['biteCd', 'rushCd', 'screamCd', 'rushT', 'inv', 'atk']) p[k] = Math.max(0, p[k] - dt);
+  if (G.hints.length && p.x > G.hints[0][0]) { G.hint = G.hints.shift()[1]; G.hintT = 7; }
+  G.hintT = Math.max(0, G.hintT - dt);
+
+  const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), rush = p.rushT > 0 ? 1.9 : 1, spd = 155 * rush;
+  p.moving = dir !== 0;
+  if (dir) { p.face = dir; p.t += dt * 11 * rush; }
+  let nx = p.x + dir * spd * dt;
+  for (const w of G.walls) if (w.hp > 0 && nx + 24 > w.x && p.x + 24 <= w.x + 2) nx = w.x - 24;
+  for (const c of G.cars) {
+    if (p.y < c.h - 4) {
+      if (nx + 26 > c.x && p.x + 26 <= c.x + 2) nx = c.x - 26;
+      if (nx - 26 < c.x + c.w && p.x - 26 >= c.x + c.w - 2) nx = c.x + c.w + 26;
+    }
+  }
+  p.x = clamp(nx, 40, lv.len + 60);
+  p.vy -= GRAV * dt; p.y += p.vy * dt;
+  let floor = 0;
+  for (const c of G.cars) if (p.x > c.x - 18 && p.x < c.x + c.w + 18 && p.y >= c.h - 8) floor = c.h;
+  if (p.y <= floor && p.vy <= 0) { p.y = floor; p.vy = 0; p.ground = true; } else p.ground = false;
+  if (!lv.machine && p.x >= lv.len) { nextLevel(); return; }
+  G.cam += (clamp(p.x - 420 + p.face * 60, 0, lv.len + 180 - W) - G.cam) * Math.min(1, dt * 5);
+
+  /* Horde */
+  G.z.forEach((z, i) => {
+    const T = TYPES[z.type];
+    z.cd -= dt; z.atk = Math.max(0, z.atk - dt); z.hurt = Math.max(0, z.hurt - dt); z.think -= dt;
+    if (z.tgt && !G.humans.includes(z.tgt)) z.tgt = null;
+    if (z.think <= 0) {
+      z.think = .25; z.tgt = null; let d = z.type === 'spitter' ? 340 : 280;
+      for (const h of G.humans) {
+        const t = Math.abs(h.x - z.x);
+        if (t < d && Math.abs(h.x - p.x) < 520) {
+          const w = wallAhead(z.x);
+          if (w && z.type !== 'crawler' && z.type !== 'spitter' && h.x > w.x + w.w && z.x < w.x) continue;
+          z.tgt = h; d = t;
+        }
+      }
+    }
+    const w0 = wallAhead(z.x), near = w0 && z.x < w0.x && w0.x - p.x < 330;
+    let goal;
+    if (z.tgt) goal = z.tgt.x + (z.x < z.tgt.x ? -24 : 24) - (z.type === 'spitter' ? 230 : 0);
+    else if (near && z.type !== 'crawler' && z.type !== 'spitter') goal = w0.x - 14;
+    else goal = p.x - p.face * (72 + Math.floor(i / 3) * 42) + z.jit;
+    if (z.type === 'crawler' && z.tgt) goal = z.tgt.x - 20;
+    let move = T.spd * (p.rushT > 0 ? 1.9 : 1) * (Math.abs(goal - z.x) > 280 ? 1.45 : 1);
+    const dx = goal - z.x, step = clamp(dx, -move * dt, move * dt);
+    z.moving = Math.abs(dx) > 8;
+    if (z.moving) { z.x += step; z.t += dt * 12; z.dirFace = dx < 0 ? -1 : 1; }
+    if (z.type !== 'crawler' && w0 && z.x < w0.x + 2 && z.x + step > w0.x - 8) z.x = Math.min(z.x, w0.x - 8);
+
+    if (z.cd <= 0) {
+      if (z.type === 'spitter') {
+        const aim = z.tgt || null, wallT = !aim && near ? w0 : null;
+        if (aim && Math.abs(aim.x - z.x) < T.r) { G.shots.push({ kind: 'bile', x: z.x + 20, h: 90, tx: aim.x, vx: Math.sign(aim.x - z.x) * 480, life: 1 }); z.cd = T.cd; z.atk = .25; }
+        else if (wallT && wallT.x - z.x < T.r) { G.shots.push({ kind: 'bile', x: z.x + 20, h: 90, vx: 480, life: 1 }); z.cd = T.cd; z.atk = .25; }
+      } else if (z.tgt && Math.abs(z.tgt.x - z.x) < T.r) {
+        hitHuman(z.tgt, T.dmg, z.x, z.type === 'brute' ? 'brute' : 'z'); z.cd = T.cd; z.atk = .22;
+      } else if (near && z.type !== 'crawler' && w0.x - z.x < T.r) {
+        hitWall(w0, w0.kind === 'machine' ? T.dmg : T.dmg * (z.type === 'brute' ? 2 : 1)); z.cd = T.cd; z.atk = .22;
+      }
+    }
+  });
+
+  /* Humans */
+  for (let i = G.humans.length - 1; i >= 0; i--) {
+    const h = G.humans[i];
+    h.stun = Math.max(0, h.stun - dt); h.cd -= dt; h.hurt = Math.max(0, h.hurt - dt); h.flash = Math.max(0, h.flash - dt); h.moving = false;
+    if (h.stun > 0) continue;
+    const near = nearestZ(h.x, 900, h.kind === 'soldier');
+    const dist = near ? Math.abs(near.x - h.x) : 1e9;
+    if (h.kind === 'civ') {
+      if (dist < 340) {
+        const w = wallAhead(h.x), stop = w ? w.x - 30 : lv.len - 30;
+        if (h.x < stop) { h.x += h.fast * dt; h.moving = true; h.t += dt * 14; }
+      }
+    } else if (h.kind === 'riot' && dist < 560) {
+      if (dist > 62) { h.x -= Math.sign(h.x - near.x) * 62 * dt; h.moving = true; h.t += dt * 7; }
+      else if (h.cd <= 0) { h.cd = 1.1; near === p ? hurtP(14) : hurtZ(near, 2); }
+    } else if (h.kind === 'soldier' && dist < 660 && h.cd <= 0) {
+      h.cd = rnd(.6, .95); h.flash = .08; sound('shot');
+      const fromH = 92, toH = near === p ? 60 + p.y : TYPES[near.type].tall * .6, tt = dist / 640;
+      G.shots.push({ kind: 'bullet', x: h.x - 50, h: fromH, vx: -640, vh: (toH - fromH) / tt, life: 1.4 });
+    } else if (h.kind === 'sci' && dist < 620) {
+      if (dist > 250) { h.x -= 58 * dt; h.moving = true; h.t += dt * 7; }
+      if (dist < 310 && h.cd <= 0) { h.cd = 1.5; G.shots.push({ kind: 'cure', x: h.x - 40, h: 70, vx: -300, life: 1.2 }); }
+    }
+  }
+
+  /* Shots */
+  for (let i = G.shots.length - 1; i >= 0; i--) {
+    const s = G.shots[i];
+    s.life -= dt; s.x += s.vx * dt; if (s.vh) s.h += s.vh * dt;
+    let done = s.life <= 0 || s.h < 0;
+    if (s.kind === 'bile') {
+      for (const h of G.humans) if (Math.abs(h.x - s.x) < 26) { hitHuman(h, TYPES.spitter.dmg, h.x - 1, 'bile'); burst(s.x, GROUND - 90, ACID, 5); done = true; break; }
+      if (!done) for (const w of G.walls) if (w.hp > 0 && s.x > w.x) { hitWall(w, 2); done = true; break; }
+    } else {
+      if (Math.abs(p.x - s.x) < 30 && s.h > p.y && s.h < p.y + 130 && (s.kind === 'cure' || p.inv <= 0)) { hurtP(s.kind === 'cure' ? 12 : 10); done = true; }
+      if (mode !== 'play') return;
+      if (!done) for (const z of G.z) {
+        if (Math.abs(z.x - s.x) < 18 && s.h < TYPES[z.type].tall) {
+          if (s.kind === 'cure') { curedZ(z); } else hurtZ(z, 2);
+          done = true; break;
+        }
+      }
+    }
+    if (done) G.shots.splice(i, 1);
+  }
+
+  for (let i = G.fx.length - 1; i >= 0; i--) {
+    const f = G.fx[i]; f.life -= dt;
+    if (f.ring) f.r += 900 * dt; else { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 700 * dt; }
+    if (f.life <= 0) G.fx.splice(i, 1);
+  }
+  for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.life -= dt; f.y -= 46 * dt; if (f.life <= 0) G.floats.splice(i, 1); }
+  shake = Math.max(0, shake - dt * 30);
+}
+function curedZ(z) {
+  const i = G.z.indexOf(z); if (i < 0) return;
+  G.z.splice(i, 1); floatText(z.x, 110, 'CURED', TEAL); burst(z.x, GROUND - 50, TEAL, 10);
+  const h = human('civ', z.x); h.lane = z.lane; G.humans.push(h);
+}
+
+/* ---------- Scene drawing ---------- */
+const SKY = [
+  { sky: '#FF8A4C', far: '#C2513F', near: '#5A2340', walk: '#6A3A54', road: '#2A1238', line: '#F4EFD8', orb: '#FFD36B' },
+  { sky: '#1B1230', far: '#3A2860', near: '#281B45', walk: '#54476F', road: '#2A2438', line: '#F4EFD8', orb: ACID },
+  { sky: '#BFD8D8', far: '#9FBFC4', near: '#4E6470', walk: '#6E8591', road: '#2A3A44', line: '#E8E2CC', orb: '#F4EFD8' }
+];
+const SKYLINE = Array.from({ length: 24 }, (_, i) => 110 + ((i * 97) % 190));
+function house(x, y, s, wall, lit) {
+  g.fillStyle = wall; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 70 * s, y - 60 * s); g.lineTo(x + 140 * s, y); g.lineTo(x + 140 * s, y + 80 * s); g.lineTo(x, y + 80 * s); g.closePath(); g.fill();
+  g.fillStyle = lit; g.fillRect(x + 20 * s, y + 18 * s, 26 * s, 26 * s); g.fillRect(x + 92 * s, y + 18 * s, 26 * s, 26 * s);
+}
+function scenery(theme, cam, night) {
+  const c = SKY[theme];
+  g.fillStyle = c.sky; g.fillRect(0, 0, W, H);
+  g.beginPath(); g.arc(theme === 1 ? 960 : 900, theme === 1 ? 170 : 260, theme === 1 ? 120 : 130, 0, 7); g.fillStyle = c.orb; g.fill();
+  if (theme === 1) { g.beginPath(); g.arc(910, 130, 22, 0, 7); g.arc(1010, 210, 30, 0, 7); g.fillStyle = '#A8D42A'; g.fill(); }
+  const tile = 160;
+  for (let k = 0; k < 2; k++) {
+    const par = k ? .45 : .2, off = cam * par, base = GROUND - 40;
+    g.fillStyle = k ? c.near : c.far;
+    if (theme === 1 || k === 0) {
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 2; i++) {
+        const hh = SKYLINE[((i % 24) + 24) % 24] * (k ? .7 : 1.25) * (theme === 0 ? .5 : 1), x = i * tile - off;
+        g.fillRect(x, base - hh, tile - (k ? 26 : 12), hh + 80);
+      }
+    }
+    if (theme === 1 && k) {
+      for (let i = Math.floor(off / tile) - 1; i < off / tile + W / tile + 2; i++) {
+        const x = i * tile - off;
+        g.fillStyle = i % 3 ? GOLD : CORAL; g.fillRect(x + 30, base - 70, 16, 22); g.fillRect(x + 76, base - 34, 16, 22);
+        g.fillStyle = c.near;
+      }
+    }
+  }
+  if (theme === 0) {
+    const off = cam * .45, t = 330;
+    for (let i = Math.floor(off / t) - 1; i < off / t + W / t + 2; i++) house(i * t - off + 40, GROUND - 124, 1.05, c.near, '#FFD36B');
+  }
+  if (theme === 2) {
+    g.fillStyle = TEAL; g.beginPath(); g.arc(1040 - cam * .05, GROUND - 90, 150, Math.PI, 0); g.fill();
+    const off = cam * .5;
+    g.fillStyle = c.near; g.fillRect(0, GROUND - 170, W, 130);
+    g.fillStyle = '#2E4552';
+    for (let x = -(off % 180); x < W; x += 180) g.fillRect(x, GROUND - 180, 12, 140);
+  }
+  g.fillStyle = c.walk; g.fillRect(0, GROUND - 40, W, 34);
+  g.fillStyle = c.road; g.fillRect(0, GROUND - 6, W, H - GROUND + 6);
+  g.strokeStyle = c.line; g.lineWidth = 6; g.setLineDash([34, 30]); g.lineDashOffset = cam;
+  g.beginPath(); g.moveTo(0, GROUND + 92); g.lineTo(W, GROUND + 92); g.stroke(); g.setLineDash([]);
+}
+function car(c) {
+  moved(c.x, GROUND + 26 - 110, () => {
+    g.scale(c.w / 240, 1);
+    F('M0 110 V66 Q4 54 22 54 L54 12 H150 L186 54 H226 Q240 56 240 76 V110 Z', G.level === 1 ? TEAL : CORAL);
+    F('M68 22 H106 V54 H42 Z', '#BFE3EE'); F('M116 22 H146 L170 54 H116 Z', '#BFE3EE');
+    O(50, 112, 24, INK, true); O(190, 112, 24, INK, true);
+  });
+}
+function wall(w) {
+  const x = w.x, b = GROUND + 62;
+  if (w.hp <= 0) { g.fillStyle = 'rgba(23,18,31,.45)'; g.fillRect(x - 10, b - 22, w.w + 20, 18); return; }
+  if (w.kind === 'machine') {
+    F2(x, b - 250, w.w, 250, '#6E8591');
+    F2(x + 24, b - 214, 62, 150, TEAL); F2(x + 106, b - 214, 62, 150, TEAL);
+    const lv = 150 * (.3 + .7 * Math.abs(Math.sin(time * 2)));
+    g.fillStyle = ACID; g.fillRect(x + 30, b - 66 - lv * .9, 50, lv * .9); g.fillRect(x + 112, b - 66 - lv * .6, 50, lv * .6);
+    g.fillStyle = INK; g.font = '22px Bowlby One, Impact'; g.textAlign = 'center'; g.fillText('CURE', x + w.w / 2, b - 20);
+  } else {
+    const rows = [[0, 3], [34, 2], [68, 3], [102, 2], [136, 1]];
+    rows.forEach(([up, n], r) => {
+      for (let i = 0; i < n; i++) {
+        g.beginPath(); g.roundRect(x - 26 + i * 42 + (r % 2 ? 22 : 0) + (n === 1 ? 44 : 0), b - 40 - up, 44, 38, 14);
+        g.fillStyle = r % 2 ? '#7E8368' : '#8A8F72'; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
+      }
+    });
+  }
+  const pc = clamp(w.hp / w.max, 0, 1), top = w.kind === 'machine' ? b - 276 : b - 196;
+  g.fillStyle = INK; g.fillRect(x - 14, top, w.w + 28, 14);
+  g.fillStyle = GOLD; g.fillRect(x - 11, top + 3, (w.w + 22) * pc, 8);
+}
+function F2(x, y, w, h, fill) { g.fillStyle = fill; g.fillRect(x, y, w, h); g.lineWidth = 6; g.strokeStyle = INK; g.strokeRect(x, y, w, h); }
+function actor(x, feet, s, face, fn, hurt) {
+  g.beginPath(); g.ellipse(x, feet + 2, 170 * s, 22 * s + 3, 0, 0, 7); g.fillStyle = 'rgba(23,18,31,.32)'; g.fill();
+  g.save(); g.translate(x, feet); g.scale(face * s, s); g.translate(-150, -420);
+  if (hurt > 0) g.globalAlpha = .55;
+  fn(); g.restore();
+}
+function drawWorld() {
+  const cam = G.cam;
+  g.save();
+  if (shake > 0 && !calm) g.translate(rnd(-shake, shake), rnd(-shake, shake));
+  scenery(G.lv.theme, cam);
+  g.save(); g.translate(-cam, 0);
+  G.cars.forEach(car);
+  G.walls.forEach(wall);
+  const list = [];
+  G.z.forEach(z => list.push({ d: z.lane, f() {
+    const s = TYPES[z.type].s, feet = GROUND + z.lane, a = z;
+    const hop = G.cars.some(c => z.x > c.x && z.x < c.x + c.w) ? 26 : 0;
+    actor(z.x, feet - hop, s, z.dirFace || 1, () => {
+      if (z.type === 'basic') heroSprite(a, ['#A5C46A', '#B7B98A', '#A9B884'][Math.floor(z.jit + 30) % 3], ['#9CC3C6', '#C7B9D8', '#B8C3A0'][Math.floor(z.jit + 30) % 3], false);
+      else ({ runner: runnerSprite, brute: bruteSprite, spitter: spitterSprite, crawler: crawlerSprite })[z.type](a);
+    }, z.hurt);
+  } }));
+  G.humans.forEach(h => list.push({ d: h.lane, f() {
+    const feet = GROUND + h.lane, s = h.kind === 'civ' ? .3 : h.kind === 'sci' ? .33 : .34, a = { t: h.t, moving: h.moving };
+    const face = h.kind === 'civ' ? 1 : h.kind === 'riot' ? 1 : -1;
+    actor(h.x, feet, s, face, () => {
+      if (h.kind === 'civ') civSprite(h, a); else if (h.kind === 'riot') copSprite(h, a);
+      else if (h.kind === 'soldier') soldierSprite(h); else sciSprite(h, a);
+    }, h.hurt);
+    if (h.stun > 0) { g.fillStyle = GOLD; for (let i = 0; i < 3; i++) { const t = time * 6 + i * 2.1; g.beginPath(); g.arc(h.x + Math.cos(t) * 26, feet - 150 + Math.sin(t) * 6, 5, 0, 7); g.fill(); } }
+    if (h.kind === 'civ' && JOBS[h.job].label && Math.abs(h.x - G.p.x) < 520) {
+      g.font = '15px Bowlby One, Impact'; g.textAlign = 'center'; const t = JOBS[h.job].label, w = g.measureText(t).width + 12;
+      g.fillStyle = INK; g.fillRect(h.x - w / 2, feet - 156, w, 22); g.fillStyle = ACID; g.fillText(t, h.x, feet - 139);
+    }
+  } }));
+  const p = G.p;
+  list.push({ d: 30, f() {
+    const feet = GROUND + 30 - p.y;
+    g.save(); if (p.rushT > 0) { g.globalAlpha = .28; actor(p.x - p.face * 40, feet, .38, p.face, () => heroSprite(p, SKIN, '#9CC3C6', true), 0); }
+    g.restore();
+    actor(p.x, feet, .38, p.face, () => heroSprite(p, SKIN, '#9CC3C6', true), p.inv > 0 && Math.floor(time * 20) % 2 ? 1 : 0);
+  } });
+  list.sort((a, b) => a.d - b.d).forEach(e => e.f());
+  G.shots.forEach(s => {
+    const y = GROUND + 20 - s.h;
+    if (s.kind === 'bullet') { g.strokeStyle = GOLD; g.lineWidth = 4; g.beginPath(); g.moveTo(s.x, y); g.lineTo(s.x + 26, y); g.stroke(); }
+    else if (s.kind === 'bile') O(s.x, y, 10, ACID, true);
+    else { g.globalAlpha = .75; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(s.x + i * 18, y + Math.sin(time * 9 + i) * 9, 15 - i * 3, 0, 7); g.fillStyle = TEAL; g.fill(); } g.globalAlpha = 1; }
+  });
+  G.fx.forEach(f => {
+    if (f.ring) { g.strokeStyle = LILAC; g.lineWidth = 8; g.globalAlpha = f.life * 2; g.beginPath(); g.arc(f.x, f.y, f.r, 0, 7); g.stroke(); g.globalAlpha = 1; }
+    else { g.fillStyle = f.color; g.fillRect(f.x, f.y, f.r, f.r); }
+  });
+  g.textAlign = 'center';
+  G.floats.forEach(f => {
+    g.font = '22px Bowlby One, Impact'; g.globalAlpha = clamp(f.life * 2, 0, 1);
+    g.lineWidth = 6; g.strokeStyle = INK; g.strokeText(f.text, f.x, f.y); g.fillStyle = f.color; g.fillText(f.text, f.x, f.y); g.globalAlpha = 1;
+  });
+  if (!G.lv.machine) {
+    const x = G.lv.len;
+    g.fillStyle = INK; g.fillRect(x + 8, GROUND - 150, 12, 190);
+    g.fillStyle = ACID; g.fillRect(x - 50, GROUND - 170, 126, 50);
+    g.fillStyle = INK; g.font = '24px Bowlby One, Impact'; g.fillText('EXIT', x + 12, GROUND - 136);
+  }
+  g.restore(); g.restore();
+  hud();
+}
+function hud() {
+  const p = G.p;
+  F2(26, 22, 300, 96, INK);
+  g.textAlign = 'left'; g.fillStyle = ACID; g.font = '700 17px Space Grotesk, Arial'; g.fillText('HORDE', 42, 50);
+  g.fillStyle = BONE; g.font = '36px Bowlby One, Impact'; g.fillText(String(G.z.length + 1), 42, 94);
+  g.fillStyle = ACID; g.font = '700 17px Space Grotesk, Arial'; g.fillText('PATIENT ZERO', 132, 50);
+  g.fillStyle = '#3C3450'; g.fillRect(132, 66, 176, 22);
+  g.fillStyle = p.hp > 30 ? SKIN : CORAL; g.fillRect(132, 66, 176 * clamp(p.hp / 100, 0, 1), 22);
+  F2(410, 22, 460, 74, INK);
+  g.fillStyle = TEAL; g.font = '700 17px Space Grotesk, Arial'; g.fillText('CURE PROGRESS', 428, 50);
+  g.textAlign = 'right'; g.fillText(Math.floor(G.cure) + '%', 852, 50); g.textAlign = 'left';
+  g.fillStyle = '#3C3450'; g.fillRect(428, 62, 424, 18);
+  g.fillStyle = G.cure > 75 ? CORAL : TEAL; g.fillRect(428, 62, 424 * Math.min(1, G.cure / 100), 18);
+  F2(954, 22, 300, 74, INK);
+  g.fillStyle = BONE; g.font = '700 17px Space Grotesk, Arial'; g.fillText(G.lv.name.toUpperCase(), 972, 50);
+  g.fillStyle = '#54476F'; g.fillRect(972, 66, 264, 8);
+  O(972 + 264 * clamp(p.x / G.lv.len, 0, 1), 70, 9, ACID); O(1236, 70, 6, CORAL);
+  const chip = (x, w, label, key, col, cd, max) => {
+    F2(x, 640, w, 60, col); g.fillStyle = INK; g.font = '22px Bowlby One, Impact'; g.textAlign = 'center'; g.fillText(label, x + w / 2 - 12, 678);
+    g.font = '700 15px Space Grotesk, Arial'; g.fillText(key, x + w - 16, 662);
+    if (cd > 0) { g.fillStyle = 'rgba(23,18,31,.68)'; g.fillRect(x, 640, w * (cd / max), 60); }
+  };
+  chip(400, 150, 'BITE', 'J', CORAL, p.biteCd, .34);
+  chip(565, 150, 'RUSH', 'K', ACID, p.rushCd, 8);
+  chip(730, 170, 'SCREAM', 'L', LILAC, p.screamCd, 12);
+  if (G.banner > 0) {
+    g.globalAlpha = clamp(G.banner, 0, 1); g.textAlign = 'center';
+    g.font = '58px Bowlby One, Impact'; g.lineWidth = 12; g.strokeStyle = INK; g.strokeText(G.lv.name, W / 2, 230); g.fillStyle = BONE; g.fillText(G.lv.name, W / 2, 230);
+    g.font = '700 24px Space Grotesk, Arial'; g.lineWidth = 8; g.strokeText(G.lv.sub, W / 2, 270); g.fillText(G.lv.sub, W / 2, 270); g.globalAlpha = 1;
+  }
+  if (G.hintT > 0 && G.hint) {
+    g.font = '700 21px Space Grotesk, Arial'; g.textAlign = 'center'; const w = g.measureText(G.hint).width + 34;
+    g.globalAlpha = clamp(G.hintT, 0, 1); g.fillStyle = INK; g.fillRect(W / 2 - w / 2, 126, w, 44); g.fillStyle = BONE; g.fillText(G.hint, W / 2, 155); g.globalAlpha = 1;
+  }
+}
+function titleArt() {
+  scenery(1, time * 30);
+  actorTitle();
+}
+function actorTitle() {
+  const a = { t: time * 7, moving: true, atk: 0 };
+  [[1000, .2], [880, .22], [770, .2], [1200, .22]].forEach(([x, s], i) => {
+    actor(x - 130 + i * 8, GROUND + 26, s + .06, 1, () => heroSprite({ t: a.t + i, moving: true, atk: 0 }, ['#A5C46A', '#B7B98A', '#A9B884'][i % 3], '#9CC3C6', false), 0);
+  });
+  actor(1100, GROUND + 44, .62, 1, () => heroSprite(a, SKIN, '#9CC3C6', true), 0);
+}
+
+/* ---------- Loop ---------- */
+function frame(now) {
+  const dt = Math.min(.033, (now - last) / 1000 || 0); last = now; time += dt;
+  if (mode === 'play') update(dt);
+  if (G && mode !== 'title') drawWorld(); else titleArt();
+  requestAnimationFrame(frame);
+}
+setMode('title');
+requestAnimationFrame(frame);
+if (document.fonts && document.fonts.load) { document.fonts.load('40px "Bowlby One"'); document.fonts.load('700 18px "Space Grotesk"'); }
+})();
+</script>

@@ -1,0 +1,196 @@
+<title>You Are the Zombie</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* One dark look from the concept art. A 16:9 stage, sized by main.js to fit the viewport; DOM screens overlay it. */
+:root{
+  color-scheme:dark;
+  --ink:#17121F; --night:#1B1230; --bg:#0E0A16; --bone:#F4EFD8; --acid:#C6F135; --coral:#FF5A3C; --teal:#5CC8C2; --lilac:#B9A3F0; --gold:#FFC15C; --pink:#FF8FB8; --muted:#CFC6E2;
+  --display:'Bowlby One',Impact,'Arial Black',sans-serif;
+  --body:'Space Grotesk','Trebuchet MS',Arial,sans-serif;
+  --pad:0px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--bone);font-family:var(--body);
+  overflow:hidden;display:flex;flex-direction:column;
+  padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+}
+.fit{flex:1 1 auto;min-height:0;min-width:0;width:100%;display:flex;align-items:center;justify-content:center}
+.stage{position:relative;width:min(100%, calc((100vh - 16px - var(--pad))*16/9));aspect-ratio:16/9;max-height:100%;background:var(--night);overflow:hidden;box-shadow:0 0 0 3px var(--ink),0 18px 60px rgba(0,0,0,.5)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--coral);outline-offset:3px}
+
+/* in-play buttons */
+.icon-btn{position:absolute;top:1.6%;right:1.2%;width:clamp(34px,4.4%,56px);aspect-ratio:1;border:3px solid var(--ink);background:var(--bone);color:var(--ink);font:400 clamp(12px,1.4vw,18px)/1 var(--display);cursor:pointer;padding:0;touch-action:manipulation}
+.scream-btn{position:absolute;right:2%;bottom:4%;width:clamp(78px,14%,170px);aspect-ratio:1;border-radius:50%;border:4px solid var(--ink);background:#6E5FA0;color:var(--bone);font:400 clamp(11px,1.5vw,20px)/1 var(--display);cursor:pointer;touch-action:none;opacity:.86;padding:0}
+.scream-btn.ready{background:var(--lilac);color:var(--ink);opacity:1;box-shadow:0 0 0 4px var(--lilac),0 0 28px 8px rgba(185,163,240,.7);animation:throb .7s ease-in-out infinite alternate}
+.scream-btn small{display:block;font:700 clamp(9px,.9vw,13px)/1.2 var(--body);margin-top:4px}
+.stage:not([data-mode="play"]) .icon-btn,.stage:not([data-mode="play"]) .scream-btn{display:none}
+@keyframes throb{to{transform:scale(1.07)}}
+
+/* touch pad, portrait phones only */
+.pad{display:none;flex:0 0 auto;width:100%;gap:12px;margin-top:10px;height:120px}
+.pad button{flex:1 1 0;min-width:0;border:4px solid var(--ink);font:400 clamp(15px,5vw,22px)/1 var(--display);touch-action:none;cursor:pointer}
+.pad .pj{background:var(--acid);color:var(--ink);flex-grow:2}
+.pad .ps{background:#6E5FA0;color:var(--bone)}
+.pad .ps.ready{background:var(--lilac);color:var(--ink);box-shadow:0 0 22px 6px rgba(185,163,240,.6)}
+body:not(.playing) .pad{visibility:hidden}
+@media (orientation:portrait) and (max-width:900px){
+  :root{--pad:130px}
+  .pad{display:flex}
+  .scream-btn{display:none!important}
+  .icon-btn{top:auto;bottom:3%;width:30px}
+}
+
+/* screens */
+.screen{position:absolute;inset:0;overflow:auto;display:flex;align-items:center;justify-content:flex-start;padding:3% 5%;background:linear-gradient(90deg,rgba(14,10,22,.92) 0%,rgba(14,10,22,.78) 55%,rgba(14,10,22,.25) 100%);z-index:5}
+.screen.center{justify-content:center;background:rgba(14,10,22,.82)}
+.screen[hidden]{display:none}
+.panel{display:flex;flex-direction:column;align-items:flex-start;gap:clamp(6px,1.2vh,14px);max-width:min(640px,100%);margin:auto 0}
+.center .panel{align-items:center;text-align:center;margin:auto}
+.col{display:flex;flex-direction:column;align-items:flex-start;gap:inherit;width:100%}
+.logo{margin:0;font:400 clamp(34px,min(8.6vw,13vh),110px)/.92 var(--display);letter-spacing:.01em;text-wrap:balance;text-shadow:0 5px 0 var(--ink)}
+.logo span{display:block;color:var(--acid)}
+h2{margin:0;font:400 clamp(26px,min(5vw,9vh),64px)/1 var(--display);text-shadow:0 4px 0 var(--ink)}
+h3{margin:0;font:700 clamp(12px,1.3vw,16px)/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+p{margin:0}
+.tag{font-weight:700;font-size:clamp(14px,1.7vw,22px);max-width:40ch}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{font:400 clamp(16px,2vw,26px)/1 var(--display);padding:.6em 1.1em;background:var(--bone);color:var(--ink);border:4px solid var(--ink);box-shadow:0 0 0 2px var(--bone),0 6px 0 2px var(--ink);cursor:pointer;touch-action:manipulation;min-height:44px}
+.btn.big{background:var(--acid);box-shadow:0 0 0 2px var(--acid),0 6px 0 2px var(--ink);font-size:clamp(20px,2.8vw,36px)}
+.btn.ghost{background:transparent;color:var(--bone);box-shadow:none;border-color:var(--muted)}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:active:not(:disabled){transform:translateY(3px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.stats{font-size:clamp(13px,1.5vw,19px);color:var(--muted)}
+.stats b{color:var(--bone);font-family:var(--display);font-weight:400}
+.stats .br{color:var(--pink)}
+.missions{list-style:none;margin:0;padding:0;display:grid;gap:6px;width:min(460px,100%)}
+.missions li{background:rgba(23,18,31,.85);border-left:6px solid var(--acid);padding:6px 10px;font-weight:700;font-size:clamp(12px,1.3vw,16px)}
+.missions .bar{display:block;height:5px;background:#3A3050;margin-top:5px}
+.missions .bar i{display:block;height:100%;background:var(--acid)}
+.keys{font-size:clamp(11px,1.15vw,14px);color:var(--muted);max-width:52ch}
+.keys b{color:var(--acid)}
+@media (pointer:coarse){.keys{display:none}}
+
+.shop{list-style:none;margin:0;padding:0;display:grid;gap:8px;width:min(720px,100%)}
+.shop li{text-align:left;display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;align-items:center;background:rgba(23,18,31,.9);padding:8px 12px;border-left:6px solid var(--lilac)}
+.shop strong{display:block;font:400 clamp(14px,1.6vw,20px)/1.1 var(--display)}
+.shop .desc{font-size:clamp(11px,1.15vw,14px);color:var(--muted)}
+.pips{display:flex;gap:4px}
+.pips i{width:14px;height:14px;border:2px solid var(--bone);display:block}
+.pips i.on{background:var(--acid);border-color:var(--acid)}
+.buy{font:400 clamp(12px,1.3vw,16px)/1 var(--display);padding:.6em .8em;min-width:7.5em;min-height:40px;background:var(--pink);color:var(--ink);border:3px solid var(--ink);cursor:pointer}
+.buy:disabled{background:#4A4060;color:#A99FBF;cursor:not-allowed}
+.brainline{font:400 clamp(16px,2vw,24px)/1 var(--display);color:var(--pink)}
+@media (max-width:560px){.shop li{grid-template-columns:1fr auto}.shop .pips{grid-column:1}}
+
+.scores{display:flex;flex-wrap:wrap;gap:12px 26px;justify-content:center}
+.scores div{display:flex;flex-direction:column;align-items:center;min-width:5em}
+.scores span{font-size:clamp(11px,1.2vw,15px);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.scores b{font:400 clamp(26px,4vw,54px)/1.05 var(--display)}
+.scores .brains b{color:var(--pink)}
+.newbest{font:400 clamp(14px,1.6vw,20px)/1 var(--display);color:var(--ink);background:var(--acid);padding:4px 8px;animation:blink .5s steps(2) infinite}
+.newbest[hidden]{display:none}
+@keyframes blink{50%{opacity:.25}}
+.done{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.done li{font-weight:700;color:var(--acid);font-size:clamp(12px,1.3vw,16px)}
+.hint{font-size:clamp(11px,1.2vw,14px);color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Small viewports: screens cover the whole viewport instead of the tiny stage */
+@media (max-width:600px),(max-height:440px){
+  .screen{position:fixed;inset:0;padding:max(12px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:rgba(14,10,22,.9)}
+  .panel{gap:8px}
+  .logo{font-size:clamp(30px,min(10vw,14vh),64px)}
+}
+@media (max-height:440px) and (orientation:landscape){
+  .title-panel{flex-direction:row;align-items:center;gap:28px;max-width:none;width:100%}
+  .title-panel .col{flex:1 1 0;gap:8px}
+  .missions li{padding:4px 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<div class="fit" id="fit">
+  <div class="stage" id="stage" data-mode="title">
+    <canvas id="game" width="1280" height="720" role="img" aria-label="You Are the Zombie: the horde runs right. Jump over hazards and bite people to grow it."></canvas>
+    <button type="button" class="icon-btn" id="pauseBtn" aria-label="Pause (P)">II</button>
+    <button type="button" class="scream-btn" id="screamBtn" aria-label="Scream (K)">SCREAM<small>K</small></button>
+
+    <section class="screen" id="scrTitle" aria-labelledby="tH">
+      <div class="panel title-panel">
+        <div class="col">
+          <h1 class="logo" id="tH">You are <span>the zombie</span></h1>
+          <p class="tag">The horde runs on its own. Time your jumps, bite everyone, mutate.</p>
+          <div class="row">
+            <button type="button" class="btn big" id="btnPlay">Play</button>
+            <button type="button" class="btn" id="btnShopT">Upgrades</button>
+          </div>
+          <p class="stats">Best <b id="tBest">0</b> &nbsp;·&nbsp; Brains <b class="br" id="tBrains">0</b></p>
+        </div>
+        <div class="col">
+          <h3>Missions</h3>
+          <ol class="missions" id="tMissions"></ol>
+          <p class="keys"><b>Space / W / tap</b> jump, hold for higher · <b>K / Shift</b> scream · <b>P</b> pause · <b>M</b> sound</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrShop" aria-labelledby="shopH" hidden>
+      <div class="panel">
+        <h2 id="shopH">Upgrades</h2>
+        <p class="brainline">Brains: <span id="shopBrains">0</span></p>
+        <ul class="shop" id="shopList"></ul>
+        <button type="button" class="btn" id="btnShopBack">Back</button>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrPause" aria-labelledby="pauseH" hidden>
+      <div class="panel">
+        <h2 id="pauseH">Paused</h2>
+        <div class="row">
+          <button type="button" class="btn big" id="btnResume">Resume</button>
+          <button type="button" class="btn" id="btnMute">Sound: on</button>
+          <button type="button" class="btn ghost" id="btnQuit">Quit run</button>
+        </div>
+        <p class="hint">P or Esc to resume</p>
+      </div>
+    </section>
+
+    <section class="screen center" id="scrOver" aria-labelledby="overH" hidden>
+      <div class="panel">
+        <h2 id="overH">The horde is gone</h2>
+        <div class="scores">
+          <div><span>Score</span><b id="oScore">0</b></div>
+          <div><span>Best</span><b id="oBest">0</b><em class="newbest" id="oNew" hidden>NEW BEST!</em></div>
+          <div class="brains"><span>Brains earned</span><b id="oBrains">0</b></div>
+        </div>
+        <div id="oDoneWrap" hidden>
+          <h3>Missions completed</h3>
+          <ul class="done" id="oDone"></ul>
+        </div>
+        <div class="row" style="justify-content:center">
+          <button type="button" class="btn big" id="btnAgain">Run again</button>
+          <button type="button" class="btn" id="btnShopO">Upgrades</button>
+          <button type="button" class="btn ghost" id="btnMenu">Title</button>
+        </div>
+        <p class="hint">Space or Enter to run again</p>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="pad" id="pad">
+  <button type="button" class="pj" id="padJump" aria-label="Jump (hold for higher)">JUMP</button>
+  <button type="button" class="ps" id="padScream" aria-label="Scream">SCREAM</button>
+</div>
+<p class="sr" id="live" aria-live="polite"></p>
+
+<script>/*@SCRIPTS@*/</script>
